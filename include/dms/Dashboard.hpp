@@ -23,6 +23,8 @@ public:
         const DistractionDetector::Result* distract = nullptr;
         const GazeResult* gaze = nullptr;
         const PhoneResult* phone = nullptr;
+        const HandResult* hand = nullptr;
+        bool phoneInferred = false;
         const RiskEngine::Result* risk = nullptr;
         const AlertManager::State* alert = nullptr;
         const std::deque<EventLogger::Event>* events = nullptr;

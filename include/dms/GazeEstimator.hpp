@@ -24,8 +24,9 @@ private:
     bool primed_ = false;
 
     // Pupil offset within one eye (six landmark indices), or false if unreliable.
+    // Also returns the pupil center in full-frame coordinates.
     bool eyeOffset(const cv::Mat& gray, const FaceObservation& obs, const int idx[6],
-                   double& dx, double& dy) const;
+                   double& dx, double& dy, cv::Point2f& pupil) const;
 };
 
 } // namespace dms

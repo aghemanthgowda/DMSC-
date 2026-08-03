@@ -99,7 +99,16 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
                                     eyeC.y + static_cast<float>(f.gaze->dy) * 30.0f);
                 cv::arrowedLine(view, eyeC, g, cv::Scalar(255, 120, 255), 2, cv::LINE_AA, 0, 0.35);
             }
+            // Iris / pupil centers (eyeball tracking).
+            if (f.gaze && f.gaze->hasPupils) {
+                cv::circle(view, f.gaze->leftPupil, 3, cv::Scalar(255, 120, 255), -1, cv::LINE_AA);
+                cv::circle(view, f.gaze->rightPupil, 3, cv::Scalar(255, 120, 255), -1, cv::LINE_AA);
+            }
         }
+    }
+    // Hand-near-face boxes (Extended feature, approximate).
+    if (f.hand && f.hand->handNearFace) {
+        for (const auto& b : f.hand->boxes) cv::rectangle(view, b, cv::Scalar(0, 200, 255), 2);
     }
     if (f.phone && f.phone->phonePresent) cv::rectangle(view, f.phone->box, kRed, 2);
     if (obs.faceCount > 1) text(view, "MULTIPLE FACES", {12, 24}, 0.6, kAmber, 2);
@@ -223,9 +232,20 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
 
     metric(0, "Head dir", distract.headDir, distract.headDir != "forward" ? kAmber : kGreen);
     metric(1, "Phone",
-           (f.phone && f.phone->available) ? (f.phone->phonePresent ? "DETECTED" : "none")
-                                           : "off",
+           (f.phone && f.phone->phonePresent)
+               ? (f.phoneInferred ? "USE (inferred)" : "DETECTED")
+               : ((f.phone && f.phone->available) ? "none" : "off"),
            (f.phone && f.phone->phonePresent) ? kRed : kInk);
+    rowGap();
+
+    metric(0, "Hand activity",
+           (f.hand && f.hand->available)
+               ? (f.hand->handNearFace ? "near face" : (std::to_string(f.hand->handsVisible) + " seen"))
+               : "off",
+           (f.hand && f.hand->handNearFace) ? kAmber : kInk);
+    metric(1, "Eyeball",
+           (f.gaze && f.gaze->hasPupils) ? "tracked" : "n/a",
+           (f.gaze && f.gaze->hasPupils) ? kGreen : kInk);
     rowGap();
 
     // Developer diagnostics.

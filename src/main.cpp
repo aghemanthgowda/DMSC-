@@ -7,6 +7,7 @@
 #include "dms/EventLogger.hpp"
 #include "dms/FaceTracker.hpp"
 #include "dms/GazeEstimator.hpp"
+#include "dms/HandActivity.hpp"
 #include "dms/MonitoringQuality.hpp"
 #include "dms/ObjectDetector.hpp"
 #include "dms/RiskEngine.hpp"
@@ -154,6 +155,7 @@ int main(int argc, char** argv) {
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, cfg.captureHeight);
 
     GazeEstimator gaze(cfg);
+    HandActivity handAnalyzer(cfg);
     MonitoringQuality quality(cfg);
     DrowsinessDetector drowsy(cfg);
     DistractionDetector distract(cfg);
@@ -209,7 +211,24 @@ int main(int argc, char** argv) {
         const bool driverPresent = obs.faceDetected || withinGrace;
 
         const GazeResult g = gaze.estimate(frame, eff);
-        const PhoneResult phone = phoneDet.detect(frame, t);
+        HandResult hand = handAnalyzer.update(frame, eff, t);
+
+        // Infer possible phone use from hand-near-face + a phone-like head
+        // posture (looking down / turned). Only used if the ONNX phone detector
+        // isn't providing a real detection. Extended feature, clearly "inferred".
+        const bool phonePosture =
+            eff.hasHeadPose && (eff.pitch < -12.0 || std::abs(eff.yaw) > 18.0);
+        hand.possiblePhoneUse = hand.handNearFace && phonePosture;
+
+        PhoneResult phone = phoneDet.detect(frame, t);
+        bool phoneInferred = false;
+        if (!phone.available && hand.possiblePhoneUse) {
+            phone.available = true;
+            phone.phonePresent = true;
+            phone.confidence = std::max(0.5, hand.confidence);
+            if (!hand.boxes.empty()) phone.box = hand.boxes.front();
+            phoneInferred = true;
+        }
         const MonitoringQuality::Result mq = quality.assess(frame, eff);
         const bool monitoringReliable = eff.faceDetected ? mq.reliable : true;
         const auto dRes = drowsy.update(eff, t);
@@ -245,7 +264,8 @@ int main(int argc, char** argv) {
         // ---- Render ----
         Dashboard::Frame df;
         df.obs = &eff; df.drowsy = &dRes; df.distract = &kRes; df.gaze = &g;
-        df.phone = &phone; df.risk = &risk; df.alert = &alert;
+        df.phone = &phone; df.hand = &hand; df.phoneInferred = phoneInferred;
+        df.risk = &risk; df.alert = &alert;
         df.events = &logger.recent();
         df.fps = fps; df.inferenceMs = inferenceMs; df.backend = tracker.backendName();
         df.landmarksActive = tracker.usingLandmarks();

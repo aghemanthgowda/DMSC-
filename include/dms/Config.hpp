@@ -53,6 +53,11 @@ struct Config {
     int phoneConfirmFrames = 3;          // detections needed to confirm PHONE USE
     int phoneDetectEveryNFrames = 4;     // run YOLO ~1/N frames for performance
 
+    // --- Hand activity (Extended DMS, skin-based, approximate) ---
+    bool enableHandDetection = true;     // detect hand-near-face for phone-use inference
+    double handMinAreaFraction = 0.10;   // min skin blob area as fraction of face area
+    double handConfirmSeconds = 0.4;     // temporal confirmation window
+
     // --- Presence / face-loss debounce ---
     double faceLostGraceSeconds = 0.7;   // ignore brief dropouts before "absent"
     double noFaceAlarmSeconds = 1.5;     // no face this long => driver absent alarm

@@ -39,7 +39,7 @@ DRIVER HMI ──────────────── Dashboard (OpenCV li
 | Layer | Modules | Notes |
 |---|---|---|
 | **CORE DDAWS** | FaceTracker, MonitoringQuality, DrowsinessDetector (EAR/blink/PERCLOS/yawn), DistractionDetector (attention), RiskEngine (DDAW decision), AlertManager (warning) | The regulatory-oriented path. Runs standalone. |
-| **EXTENDED DMS** | ObjectDetector (phone, ONNX — optional), GazeEstimator (approximate), EventLogger, developer diagnostics | Clearly "Additional DMS features". Do **not** gate core DDAW. Phone detection is **not** claimed as an AIS-184 DDAW requirement. |
+| **EXTENDED DMS** | ObjectDetector (phone, ONNX — optional), GazeEstimator (approximate gaze + **iris/pupil tracking**), HandActivity (**skin-based hand-near-face → inferred phone use**, approximate), EventLogger, developer diagnostics | Clearly "Additional DMS features". Do **not** gate core DDAW. Phone detection is **not** claimed as an AIS-184 DDAW requirement. Hand activity is a coarse skin heuristic (false-positives possible with bare skin near the face); the accurate path is ONNX YOLO. |
 
 ## Module map (requested DDAWS name → this codebase)
 

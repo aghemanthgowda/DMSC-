@@ -54,6 +54,9 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readInto(fs, "phone_confidence_threshold", cfg.phoneConfidenceThreshold);
     readInto(fs, "phone_confirm_frames", cfg.phoneConfirmFrames);
     readInto(fs, "phone_detect_every_n_frames", cfg.phoneDetectEveryNFrames);
+    readBool(fs, "enable_hand_detection", cfg.enableHandDetection);
+    readInto(fs, "hand_min_area_fraction", cfg.handMinAreaFraction);
+    readInto(fs, "hand_confirm_seconds", cfg.handConfirmSeconds);
     readInto(fs, "face_lost_grace_seconds", cfg.faceLostGraceSeconds);
     readInto(fs, "no_face_alarm_seconds", cfg.noFaceAlarmSeconds);
     readInto(fs, "quality_min_face_width_fraction", cfg.qualityMinFaceWidthFraction);
@@ -118,6 +121,9 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "phone_confidence_threshold" << cfg.phoneConfidenceThreshold;
     fs << "phone_confirm_frames" << cfg.phoneConfirmFrames;
     fs << "phone_detect_every_n_frames" << cfg.phoneDetectEveryNFrames;
+    fs << "enable_hand_detection" << (cfg.enableHandDetection ? 1 : 0);
+    fs << "hand_min_area_fraction" << cfg.handMinAreaFraction;
+    fs << "hand_confirm_seconds" << cfg.handConfirmSeconds;
     fs << "face_lost_grace_seconds" << cfg.faceLostGraceSeconds;
     fs << "no_face_alarm_seconds" << cfg.noFaceAlarmSeconds;
     fs << "quality_min_face_width_fraction" << cfg.qualityMinFaceWidthFraction;

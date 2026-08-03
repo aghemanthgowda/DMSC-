@@ -7,7 +7,8 @@
 namespace dms {
 
 bool GazeEstimator::eyeOffset(const cv::Mat& gray, const FaceObservation& obs,
-                              const int idx[6], double& dx, double& dy) const {
+                              const int idx[6], double& dx, double& dy,
+                              cv::Point2f& pupil) const {
     // Bounding box of the six eye landmarks, padded slightly.
     cv::Point2f lo = obs.landmarks[idx[0]], hi = obs.landmarks[idx[0]];
     for (int i = 1; i < 6; ++i) {
@@ -26,13 +27,24 @@ bool GazeEstimator::eyeOffset(const cv::Mat& gray, const FaceObservation& obs,
     cv::Mat eye = gray(roi);
     cv::Mat blurred;
     cv::GaussianBlur(eye, blurred, cv::Size(5, 5), 0);
+
+    // Isolate the darkest region (iris/pupil) and take its centroid — steadier
+    // than a single darkest pixel.
     double minVal, maxVal;
     cv::Point minLoc, maxLoc;
-    cv::minMaxLoc(blurred, &minVal, &maxVal, &minLoc, &maxLoc);  // darkest = pupil
+    cv::minMaxLoc(blurred, &minVal, &maxVal, &minLoc, &maxLoc);
+    cv::Mat darkMask;
+    cv::threshold(blurred, darkMask, minVal + (maxVal - minVal) * 0.25, 255, cv::THRESH_BINARY_INV);
+    cv::Moments m = cv::moments(darkMask, true);
+    cv::Point2f center(static_cast<float>(minLoc.x), static_cast<float>(minLoc.y));
+    if (m.m00 > 1.0) center = cv::Point2f(static_cast<float>(m.m10 / m.m00),
+                                          static_cast<float>(m.m01 / m.m00));
+
+    pupil = cv::Point2f(center.x + roi.x, center.y + roi.y);  // full-frame
 
     // Offset of the pupil from the eye-box centre, normalized to [-1, 1].
-    dx = (static_cast<double>(minLoc.x) / roi.width - 0.5) * 2.0;
-    dy = (static_cast<double>(minLoc.y) / roi.height - 0.5) * 2.0;
+    dx = (static_cast<double>(center.x) / roi.width - 0.5) * 2.0;
+    dy = (static_cast<double>(center.y) / roi.height - 0.5) * 2.0;
     return true;
 }
 
@@ -50,8 +62,9 @@ GazeResult GazeEstimator::estimate(const cv::Mat& frameBGR, const FaceObservatio
     static const int L[6] = {36, 37, 38, 39, 40, 41};
     static const int R[6] = {42, 43, 44, 45, 46, 47};
     double lx, ly, rx, ry;
-    const bool okL = eyeOffset(gray, obs, L, lx, ly);
-    const bool okR = eyeOffset(gray, obs, R, rx, ry);
+    cv::Point2f lp, rp;
+    const bool okL = eyeOffset(gray, obs, L, lx, ly, lp);
+    const bool okR = eyeOffset(gray, obs, R, rx, ry, rp);
     if (!okL && !okR) return g;
 
     double dx = 0.0, dy = 0.0;
@@ -60,6 +73,10 @@ GazeResult GazeEstimator::estimate(const cv::Mat& frameBGR, const FaceObservatio
     if (okR) { dx += rx; dy += ry; ++n; }
     dx /= n;
     dy /= n;
+
+    g.hasPupils = true;
+    g.leftPupil = okL ? lp : rp;
+    g.rightPupil = okR ? rp : lp;
 
     // Exponential smoothing for stability.
     if (!primed_) {

@@ -64,6 +64,19 @@ struct GazeResult {
     std::string direction = "unknown";    // forward|left|right|up|down|unknown
     double dx = 0.0;                       // normalized pupil offset (-1..1)
     double dy = 0.0;
+    bool hasPupils = false;                // pupil/iris centers located
+    cv::Point2f leftPupil{0, 0};           // full-frame coords
+    cv::Point2f rightPupil{0, 0};
+};
+
+// Approximate hand-activity result (Extended DMS feature). Skin-based, coarse.
+struct HandResult {
+    bool available = false;                // analyzer running
+    int handsVisible = 0;                  // approximate count near the driver
+    bool handNearFace = false;             // temporally confirmed
+    bool possiblePhoneUse = false;         // hand-near-face + phone-like head posture
+    double confidence = 0.0;
+    std::vector<cv::Rect> boxes;
 };
 
 // ---------------------------------------------------------------------------

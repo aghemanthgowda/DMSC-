@@ -51,8 +51,9 @@ images.
 | **Drowsiness** | EAR + PERCLOS + closure + blinks + yawns (temporal) | **ALERT / POSSIBLE / DROWSY / CRITICAL** + 0–100 score |
 | **Yawning** | Mouth-Aspect-Ratio (MAR), duration-gated | yawn count + "yawning" |
 | **Head pose** | yaw / pitch / roll via `solvePnP`, EMA-smoothed | forward / left / right / up / down / tilted |
-| **Gaze (approx)** | pupil offset in each eye box | forward / left / right / up / down |
-| **Phone** *(optional)* | YOLO via ONNX Runtime, low-FPS + temporal confirm | phone detected (Phase 2) |
+| **Gaze / eyeball (approx)** | iris/pupil center located per eye | drawn pupils + forward/left/right/up/down |
+| **Hand activity (approx, extended)** | skin-based hand-near-face + head posture | inferred "possible phone use" (coarse) |
+| **Phone** *(optional)* | YOLO via ONNX Runtime, low-FPS + temporal confirm | phone detected (accurate path) |
 | **Distraction** | head + gaze + phone (temporal) | **ATTENTIVE / BRIEF / DISTRACTED / HIGHLY** + 0–100 |
 | **Risk engine** | weighted fusion + **state machine (hysteresis)** | 0–100 risk, driver state, alert level |
 | **Alerts** | level 0–3, cooldown, escalation, recovery | visual banner + audible alarm |
