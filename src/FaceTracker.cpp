@@ -193,24 +193,32 @@ void FaceTracker::estimateHeadPose(FaceObservation& obs, const cv::Size& frameSi
 FaceObservation FaceTracker::processDlib(const cv::Mat& frameBGR) {
     FaceObservation obs;
 
-    // HOG detection is the costly step, so run it on a half-size image and scale
-    // the box back up. The 68-point predictor then runs on the full-res frame.
-    const double scale = 0.5;
-    cv::Mat small;
-    cv::resize(frameBGR, small, cv::Size(), scale, scale, cv::INTER_LINEAR);
+    // Run HOG detection only every Nth frame (on a half-size image) and reuse the
+    // last box in between; the cheap 68-point predictor still runs every frame so
+    // landmarks stay live. This roughly triples throughput on a laptop CPU.
+    const bool doDetect = (frameCount_++ % kDetectInterval == 0) || !haveLastFace_;
+    if (doDetect) {
+        const double scale = 0.5;
+        cv::Mat small;
+        cv::resize(frameBGR, small, cv::Size(), scale, scale, cv::INTER_LINEAR);
 
-    dlib::cv_image<dlib::bgr_pixel> dsmall(small);
-    std::vector<dlib::rectangle> dets = detector_(dsmall);
-    if (dets.empty()) return obs;
+        dlib::cv_image<dlib::bgr_pixel> dsmall(small);
+        std::vector<dlib::rectangle> dets = detector_(dsmall);
+        if (dets.empty()) {
+            haveLastFace_ = false;
+            return obs;
+        }
+        const dlib::rectangle best = *std::max_element(
+            dets.begin(), dets.end(), [](const dlib::rectangle& a, const dlib::rectangle& b) {
+                return a.area() < b.area();
+            });
+        lastFace_ = dlib::rectangle(
+            static_cast<long>(best.left() / scale), static_cast<long>(best.top() / scale),
+            static_cast<long>(best.right() / scale), static_cast<long>(best.bottom() / scale));
+        haveLastFace_ = true;
+    }
 
-    const dlib::rectangle best = *std::max_element(
-        dets.begin(), dets.end(),
-        [](const dlib::rectangle& a, const dlib::rectangle& b) { return a.area() < b.area(); });
-
-    const dlib::rectangle full(
-        static_cast<long>(best.left() / scale), static_cast<long>(best.top() / scale),
-        static_cast<long>(best.right() / scale), static_cast<long>(best.bottom() / scale));
-
+    const dlib::rectangle& full = lastFace_;
     obs.face = cv::Rect(cv::Point(static_cast<int>(full.left()), static_cast<int>(full.top())),
                         cv::Point(static_cast<int>(full.right()) + 1,
                                   static_cast<int>(full.bottom()) + 1));

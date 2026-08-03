@@ -101,7 +101,10 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR,
         obs.faceDetected ? kGreen : kRed);
     row("Eyes", drowsy.eyesClosed ? "CLOSED" : "open",
         drowsy.eyesClosed ? kRed : kGreen);
-    if (obs.ear >= 0.0) row("EAR", fmt("%.2f", obs.ear), kInk);
+    if (drowsy.ear >= 0.0) {
+        row("EAR", fmt("%.2f", drowsy.ear) + " / " + fmt("%.2f", drowsy.earThreshold),
+            drowsy.eyesClosed ? kRed : kInk);
+    }
     row("Closure", fmt("%.1fs", drowsy.closureSeconds),
         drowsy.closureSeconds > 1.0 ? kRed : kInk);
     y += 6;
@@ -112,8 +115,16 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR,
 
     row("Blinks", std::to_string(drowsy.blinkCount) + "  (" +
                       fmt("%.0f", drowsy.blinkRate) + "/min)", kInk);
-    if (obs.mar >= 0.0) {
-        row("Yawns", std::to_string(drowsy.yawnCount), drowsy.yawning ? kAmber : kInk);
+    if (drowsy.mar >= 0.0) {
+        drawMeter(panel, 16, y, kPanelWidth - 60,
+                  "MOUTH (yawn)  " + fmt("%.2f", drowsy.mar), drowsy.mar, 0.60, 0.90);
+        y += 34;
+        row("Yawns", std::to_string(drowsy.yawnCount) + (drowsy.yawning ? "  YAWNING" : ""),
+            drowsy.yawning ? kAmber : kInk);
+    }
+    if (drowsy.calibrating) {
+        putLabel(panel, "calibrating eyes...", {16, y}, 0.42, kAmber);
+        y += 20;
     }
 
     std::string attn = distract.direction;

@@ -52,6 +52,13 @@ private:
     dlib::frontal_face_detector detector_;
     dlib::shape_predictor predictor_;
     FaceObservation processDlib(const cv::Mat& frameBGR);
+
+    // Detection is the costly step, so we run it every Nth frame and reuse the
+    // last box in between (the 68-point predictor still runs every frame).
+    dlib::rectangle lastFace_;
+    bool haveLastFace_ = false;
+    int frameCount_ = 0;
+    static constexpr int kDetectInterval = 3;
 #endif
     bool dlibLoaded_ = false;
 

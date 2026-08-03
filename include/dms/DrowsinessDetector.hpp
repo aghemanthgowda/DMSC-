@@ -22,6 +22,11 @@ public:
         bool yawning = false;
         int level = 0;                // 0 ok, 1 warning, 2 alarm
         std::string message;
+
+        double ear = -1.0;            // smoothed EAR (>=0 with landmarks)
+        double earThreshold = 0.0;    // adaptive eyes-closed threshold in use
+        double mar = -1.0;            // smoothed MAR (>=0 with landmarks)
+        bool calibrating = false;     // still learning the open-eye baseline
     };
 
     explicit DrowsinessDetector(const Config& cfg) : cfg_(cfg) {}
@@ -42,6 +47,15 @@ private:
 
     std::deque<std::pair<double, bool>> window_;  // (time, eyesClosed) for PERCLOS
     std::deque<double> blinkTimes_;               // blink timestamps for the rate
+
+    std::deque<double> earSmooth_;                // moving-average buffer for EAR
+    std::deque<double> marSmooth_;                // moving-average buffer for MAR
+    std::deque<std::pair<double, double>> earBaseline_;  // (time, smoothedEAR) for open-baseline
+    double startTime_ = -1.0;                     // first observation time (for calibration)
+
+    // Smoothed value + adaptive eyes-closed decision from a raw landmark EAR.
+    bool decideEyesClosed(double rawEar, double t, double& smoothedOut, double& thresholdOut);
+    double smoothMar(double rawMar);
 };
 
 } // namespace dms

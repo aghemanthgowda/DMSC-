@@ -8,7 +8,10 @@ namespace dms {
 // laptop webcam at arm's length; every value can be overridden from the CLI.
 struct Config {
     // --- Eye closure / drowsiness ---
-    double earThreshold = 0.21;          // EAR below this => eye considered closed
+    double earThreshold = 0.21;          // fallback EAR threshold (before calibration)
+    double earSmoothingFrames = 5;       // moving-average window over raw EAR
+    double earBaselineWindowSeconds = 5; // rolling window whose max = "eyes open" baseline
+    double earCloseRatio = 0.62;         // eyes closed when EAR < ratio * open-baseline
     double eyeClosedAlarmSeconds = 1.20; // sustained closure => microsleep alarm
     double perclosWindowSeconds = 60.0;  // rolling window for the PERCLOS metric
     double perclosWarn = 0.15;           // >=15% eyes-closed over window => warning
@@ -20,6 +23,7 @@ struct Config {
 
     // --- Yawn (only when landmarks are available) ---
     double marThreshold = 0.60;          // MAR above this => mouth open
+    double marSmoothingFrames = 5;       // moving-average window over raw MAR
     double yawnMinSeconds = 1.00;        // mouth open this long => a yawn
 
     // --- Distraction ---
