@@ -43,19 +43,89 @@ it is using.
 ## Requirements
 
 - A C++17 compiler, CMake ≥ 3.16
-- **OpenCV 4** with the `face` (contrib) module for landmark mode
+- **OpenCV 4** (base modules required; the `face`/contrib module is optional and
+  only needed for landmark mode)
+
+---
+
+## Windows (PowerShell)
+
+> These are the steps for a Windows laptop — the folder examples use
+> `C:\Users\Heman\DMS-NXP`. Run everything from the project folder in PowerShell.
+
+### 1. Install the toolchain
+
+- **Visual Studio 2022** with the *"Desktop development with C++"* workload
+  (gives you the MSVC compiler). The *Community* edition is free.
+- **CMake** — <https://cmake.org/download/> (tick "Add CMake to PATH").
+
+### 2. Install OpenCV — pick ONE
+
+**Option A — Prebuilt OpenCV (fastest, no compiling). Runs in Haar mode.**
+
+1. Download the Windows package from <https://opencv.org/releases/> and run it
+   to extract, e.g. to `C:\opencv`.
+2. Add the DLL folder to your PATH so the app can find `opencv_world4xx.dll`:
+   ```powershell
+   $env:Path += ";C:\opencv\build\x64\vc16\bin"
+   ```
+   (Use `vc16` for VS 2019/2022; check which folder exists.)
+
+The official prebuilt package does **not** include the `face` module, so
+landmark mode is off — but the full drowsiness/distraction demo still works.
+
+**Option B — vcpkg with contrib (enables landmark mode).** Compiles OpenCV, so
+it takes a while, but you get accurate EAR + yawns + head pose:
+
+```powershell
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg install "opencv4[contrib]:x64-windows"
+$env:VCPKG_ROOT = "C:\vcpkg"
+```
+
+### 3. Build
+
+```powershell
+# Option A (prebuilt): tell CMake where OpenCV is
+./scripts/build.ps1 -OpenCVDir C:\opencv\build
+
+# Option B (vcpkg): $env:VCPKG_ROOT is picked up automatically
+./scripts/build.ps1
+```
+
+This produces `build\Release\dms.exe`.
+
+### 4. Run
+
+```powershell
+# Haar mode (works with either OpenCV option):
+.\build\Release\dms.exe
+
+# Landmark mode (Option B / vcpkg only):
+./scripts/download_facemark_model.ps1
+.\build\Release\dms.exe --model models\lbfmodel.yaml
+```
+
+Press **`q`** or **`ESC`** in the window to quit. Allow camera access if Windows
+prompts. If the window says *"Could not open camera"*, close other apps using the
+webcam (Teams, Zoom) or try `--camera 1`.
+
+---
+
+## Linux / macOS
 
 Install OpenCV:
 
 ```bash
-# Ubuntu / Debian
+# Ubuntu / Debian (includes the contrib 'face' module)
 sudo apt-get install -y libopencv-dev
 
 # macOS (Homebrew) — includes opencv_contrib
 brew install opencv
 ```
 
-## Build
+Build:
 
 ```bash
 ./scripts/build.sh
@@ -64,26 +134,19 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-This produces `build/dms`.
-
-## Run
-
-**Haar fallback mode** (no download, works immediately):
+Run:
 
 ```bash
+# Haar fallback mode (works immediately):
 ./build/dms
-```
 
-**Landmark mode** (accurate EAR + yawns + head pose):
-
-```bash
+# Landmark mode (accurate EAR + yawns + head pose):
 ./scripts/download_facemark_model.sh     # one-time, ~54 MB -> models/lbfmodel.yaml
 ./build/dms --model models/lbfmodel.yaml
 ```
 
-> If `models/lbfmodel.yaml` exists, `./build/dms` picks it up automatically.
-
-Press **`q`** or **`ESC`** in the window to quit.
+> If `models/lbfmodel.yaml` exists, the program picks it up automatically.
+> Press **`q`** or **`ESC`** in the window to quit.
 
 ### Command-line options
 

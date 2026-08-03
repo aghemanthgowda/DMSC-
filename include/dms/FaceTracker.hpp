@@ -3,8 +3,10 @@
 #include "dms/Config.hpp"
 #include "dms/Types.hpp"
 
-#include <opencv2/face.hpp>
 #include <opencv2/objdetect.hpp>
+#ifdef DMS_HAVE_FACE
+#include <opencv2/face.hpp>
+#endif
 
 #include <string>
 
@@ -35,7 +37,9 @@ private:
     Config cfg_;
     cv::CascadeClassifier faceCascade_;
     cv::CascadeClassifier eyeCascade_;
+#ifdef DMS_HAVE_FACE
     cv::Ptr<cv::face::Facemark> facemark_;
+#endif
     bool facemarkLoaded_ = false;
 
     void fallbackEyes(const cv::Mat& gray, FaceObservation& obs);

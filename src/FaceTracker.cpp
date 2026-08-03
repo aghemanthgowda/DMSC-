@@ -11,6 +11,7 @@ namespace dms {
 
 namespace {
 
+#ifdef DMS_HAVE_FACE
 double dist(const cv::Point2f& a, const cv::Point2f& b) {
     return cv::norm(a - b);
 }
@@ -32,6 +33,7 @@ double mouthAspectRatio(const std::vector<cv::Point2f>& lm) {
     if (horizontal < 1e-6) return 0.0;
     return vertical / (2.0 * horizontal);
 }
+#endif  // DMS_HAVE_FACE
 
 } // namespace
 
@@ -51,16 +53,21 @@ bool FaceTracker::init() {
     }
 
     if (!cfg_.facemarkModel.empty()) {
+#ifdef DMS_HAVE_FACE
         try {
             facemark_ = cv::face::FacemarkLBF::create();
             facemark_->loadModel(cfg_.facemarkModel);
             facemarkLoaded_ = true;
             std::cout << "[FaceTracker] Loaded landmark model: " << cfg_.facemarkModel << "\n";
-        } catch (const cv::Exception& e) {
+        } catch (const cv::Exception&) {
             std::cerr << "[FaceTracker] Could not load facemark model (" << cfg_.facemarkModel
                       << "); falling back to Haar eye detection.\n";
             facemarkLoaded_ = false;
         }
+#else
+        std::cerr << "[FaceTracker] This build has no OpenCV 'face' module; ignoring --model "
+                     "and using Haar fallback mode.\n";
+#endif
     }
     return true;
 }
@@ -147,6 +154,7 @@ FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
                                  });
     obs.faceDetected = true;
 
+#ifdef DMS_HAVE_FACE
     if (facemarkLoaded_) {
         std::vector<cv::Rect> one{obs.face};
         std::vector<std::vector<cv::Point2f>> shapes;
@@ -167,6 +175,7 @@ FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
             return obs;
         }
     }
+#endif  // DMS_HAVE_FACE
 
     // Fallback path (no landmarks): use the eye cascade.
     fallbackEyes(gray, obs);
