@@ -41,7 +41,10 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readInto(fs, "perclos_alarm", cfg.perclosAlarm);
     readInto(fs, "long_blink_seconds", cfg.longBlinkSeconds);
     readInto(fs, "mar_threshold", cfg.marThreshold);
+    readInto(fs, "mar_open_delta", cfg.marOpenDelta);
+    readInto(fs, "mar_baseline_window_seconds", cfg.marBaselineWindowSeconds);
     readInto(fs, "yawn_min_seconds", cfg.yawnMinSeconds);
+    readInto(fs, "yawn_dip_tolerance_seconds", cfg.yawnDipToleranceSeconds);
     readInto(fs, "face_detect_every_n_frames", cfg.faceDetectEveryNFrames);
     readInto(fs, "detection_scale", cfg.detectionScale);
     readInto(fs, "head_away_yaw_degrees", cfg.headAwayYawDegrees);
@@ -102,7 +105,10 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "perclos_alarm" << cfg.perclosAlarm;
     fs << "long_blink_seconds" << cfg.longBlinkSeconds;
     fs << "mar_threshold" << cfg.marThreshold;
+    fs << "mar_open_delta" << cfg.marOpenDelta;
+    fs << "mar_baseline_window_seconds" << cfg.marBaselineWindowSeconds;
     fs << "yawn_min_seconds" << cfg.yawnMinSeconds;
+    fs << "yawn_dip_tolerance_seconds" << cfg.yawnDipToleranceSeconds;
     fs << "face_detect_every_n_frames" << cfg.faceDetectEveryNFrames;
     fs << "detection_scale" << cfg.detectionScale;
     fs << "head_away_yaw_degrees" << cfg.headAwayYawDegrees;

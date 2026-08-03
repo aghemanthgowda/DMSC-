@@ -31,6 +31,7 @@ public:
         double earRight = -1.0;
         double earThreshold = 0.0;    // adaptive eyes-closed threshold in use
         double mar = -1.0;            // smoothed MAR (>=0 with landmarks)
+        double marOpenThreshold = 0.0; // adaptive mouth-open threshold in use
         bool calibrating = false;     // still learning the open-eye baseline
     };
 
@@ -50,6 +51,9 @@ private:
     bool mouthOpen_ = false;
     double mouthOpenStart_ = 0.0;
     bool yawnCounted_ = false;
+    double belowSince_ = -1.0;                    // dip-tolerance timer for yawns
+    std::deque<std::pair<double, double>> marBaseline_;  // (time, smoothedMAR)
+    bool eyeClosedState_ = false;                 // hysteresis state for eyes
 
     std::deque<std::pair<double, bool>> window_;  // (time, eyesClosed) for PERCLOS
     std::deque<double> blinkTimes_;               // blink timestamps for the rate

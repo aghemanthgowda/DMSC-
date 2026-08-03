@@ -192,7 +192,8 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
 
     metric(0, "PERCLOS", fmt("%.0f%%", drowsy.perclos * 100),
            drowsy.perclos >= 0.30 ? kRed : (drowsy.perclos >= 0.15 ? kAmber : kInk));
-    metric(1, "MAR (yawn)", lm ? fmt("%.2f", drowsy.mar) : "n/a",
+    metric(1, "MAR / open",
+           lm ? fmt("%.2f", drowsy.mar) + "/" + fmt("%.2f", drowsy.marOpenThreshold) : "n/a",
            drowsy.yawning ? kAmber : kInk);
     rowGap();
 

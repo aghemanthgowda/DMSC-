@@ -45,7 +45,15 @@ bool DrowsinessDetector::decideEyesClosed(double rawEar, double t, double& smoot
         threshold = std::clamp(baseline * cfg_.earCloseRatio, 0.15, 0.30);
     }
     thresholdOut = threshold;
-    return smoothed < threshold;
+
+    // Hysteresis: enter "closed" below the threshold, only leave once EAR rises
+    // clearly above it. Prevents flicker (and closure-timer resets) at the edge.
+    if (!eyeClosedState_) {
+        if (smoothed < threshold) eyeClosedState_ = true;
+    } else {
+        if (smoothed > threshold * 1.12) eyeClosedState_ = false;
+    }
+    return eyeClosedState_;
 }
 
 DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs,
@@ -107,22 +115,46 @@ DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs
     r.blinkRate = static_cast<double>(blinkTimes_.size());
     r.longBlinkCount = longBlink_;
 
-    // --- Yawn detection (landmark path only) ---
+    // --- Yawn detection (landmark path only), adaptive + jitter-tolerant ---
     if (obs.mar >= 0.0) {
         const double mar = smoothMar(obs.mar);
         r.mar = mar;
-        const bool open = mar >= cfg_.marThreshold;
-        if (open && !mouthOpen_) {
-            mouthOpen_ = true;
-            mouthOpenStart_ = tSeconds;
-            yawnCounted_ = false;
-        } else if (!open && mouthOpen_) {
-            mouthOpen_ = false;
+
+        // Closed-mouth baseline = rolling minimum of smoothed MAR (the mouth is
+        // closed most of the time), so the open threshold adapts per person/camera.
+        marBaseline_.emplace_back(tSeconds, mar);
+        while (!marBaseline_.empty() &&
+               tSeconds - marBaseline_.front().first > cfg_.marBaselineWindowSeconds) {
+            marBaseline_.pop_front();
         }
-        if (mouthOpen_ && !yawnCounted_ &&
-            tSeconds - mouthOpenStart_ >= cfg_.yawnMinSeconds) {
-            ++yawnCount_;
-            yawnCounted_ = true;
+        double baseline = mar;
+        for (const auto& e : marBaseline_) baseline = std::min(baseline, e.second);
+
+        const double openThr = std::max(cfg_.marThreshold, baseline + cfg_.marOpenDelta);
+        const double closeThr = std::max(cfg_.marThreshold * 0.8, baseline + cfg_.marOpenDelta * 0.55);
+        r.marOpenThreshold = openThr;
+
+        if (!mouthOpen_) {
+            if (mar >= openThr) {
+                mouthOpen_ = true;
+                mouthOpenStart_ = tSeconds;
+                yawnCounted_ = false;
+                belowSince_ = -1.0;
+            }
+        } else {
+            // Tolerate brief dips below the close threshold (landmark jitter)
+            // without resetting the yawn timer.
+            if (mar < closeThr) {
+                if (belowSince_ < 0.0) belowSince_ = tSeconds;
+                if (tSeconds - belowSince_ > cfg_.yawnDipToleranceSeconds) mouthOpen_ = false;
+            } else {
+                belowSince_ = -1.0;
+            }
+            if (mouthOpen_ && !yawnCounted_ &&
+                tSeconds - mouthOpenStart_ >= cfg_.yawnMinSeconds) {
+                ++yawnCount_;
+                yawnCounted_ = true;
+            }
         }
         r.yawning = mouthOpen_ && (tSeconds - mouthOpenStart_ >= cfg_.yawnMinSeconds);
     }

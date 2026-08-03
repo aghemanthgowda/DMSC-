@@ -35,13 +35,16 @@ double eyeAspectRatio(const std::vector<cv::Point2f>& lm, const int idx[6]) {
     return vertical / (2.0 * horizontal);
 }
 
-// Mouth-Aspect-Ratio from the inner-lip landmarks (60..67).
+// Mouth-Aspect-Ratio: inner-lip vertical opening normalized by the stable OUTER
+// mouth width (48..54). Using the outer width as the denominator is far less
+// noisy than the inner-corner width, so the value is ~0 with a closed mouth and
+// rises smoothly as the mouth opens.
 double mouthAspectRatio(const std::vector<cv::Point2f>& lm) {
     const double vertical =
         dist(lm[61], lm[67]) + dist(lm[62], lm[66]) + dist(lm[63], lm[65]);
-    const double horizontal = dist(lm[60], lm[64]);
-    if (horizontal < 1e-6) return 0.0;
-    return vertical / (2.0 * horizontal);
+    const double width = dist(lm[48], lm[54]);
+    if (width < 1e-6) return 0.0;
+    return vertical / (3.0 * width);
 }
 
 // Fill EAR / MAR / eyesClosed from a populated 68-point landmark set.
