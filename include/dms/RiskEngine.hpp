@@ -20,6 +20,7 @@ public:
         DriverState state = DriverState::Safe;
         int alertLevel = 0;                // 0 none, 1 visual, 2 audio, 3 critical
         std::vector<std::string> reasons;  // contributing signal messages
+        bool monitoringReliable = true;    // false => "monitoring quality low"
         // Raw contributions (for developer mode).
         double drowsyContribution = 0.0;
         double distractionContribution = 0.0;
@@ -31,7 +32,7 @@ public:
 
     Result update(const DrowsinessDetector::Result& drowsy,
                   const DistractionDetector::Result& distract, const PhoneResult& phone,
-                  bool driverPresent, double tSeconds);
+                  bool driverPresent, bool monitoringReliable, double tSeconds);
 
 private:
     Config cfg_;

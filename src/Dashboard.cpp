@@ -146,6 +146,19 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
     text(panel, fmt("RISK %.0f/100", risk.score), {22, y + 44}, 0.5, cv::Scalar(20, 20, 20), 1);
     y += 62;
 
+    // Monitoring-quality gate: unreliable => we are NOT asserting drowsiness.
+    if (!f.monitoringReliable && obs.faceDetected) {
+        cv::rectangle(panel, {12, y}, {kPanelWidth - 12, y + 34}, kAmber, -1);
+        text(panel, "MONITORING QUALITY LOW", {20, y + 15}, 0.44, cv::Scalar(20, 20, 20), 1);
+        text(panel, f.monitoringReason.empty() ? "reduced reliability" : f.monitoringReason,
+             {20, y + 30}, 0.4, cv::Scalar(20, 20, 20), 1);
+        y += 42;
+    }
+    if (f.privacyMode) {
+        text(panel, "PRIVACY MODE - no logging/images", {16, y}, 0.4, kGreen);
+        y += 18;
+    }
+
     // Risk gauge.
     {
         const int x = 16, w = kPanelWidth - 32, h = 12;

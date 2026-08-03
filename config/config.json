@@ -35,8 +35,14 @@
     "capture_width": 640,
     "capture_height": 480,
     "phone_model": "",
+    "quality_min_face_width_fraction": 0.12,
+    "quality_low_light_mean": 45.0,
+    "quality_min_confidence": 0.30,
+    "quality_max_yaw_degrees": 45.0,
+    "quality_max_pitch_degrees": 35.0,
     "mirror": 1,
     "beep": 1,
     "developer_mode": 0,
-    "log_events": 1
+    "log_events": 1,
+    "privacy_mode": 0
 }

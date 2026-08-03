@@ -50,6 +50,16 @@ struct Config {
     double faceLostGraceSeconds = 0.7;   // ignore brief dropouts before "absent"
     double noFaceAlarmSeconds = 1.5;     // no face this long => driver absent alarm
 
+    // --- Monitoring quality / low-confidence (AIS-184-oriented reliability gate) ---
+    // When monitoring is unreliable the system reports "MONITORING QUALITY LOW"
+    // instead of asserting drowsiness, so it never false-alarms when it cannot
+    // actually see the driver's eyes.
+    double qualityMinFaceWidthFraction = 0.12;  // face narrower than this => too far/small
+    double qualityLowLightMean = 45.0;          // mean luma below this => too dark
+    double qualityMinConfidence = 0.30;         // detector confidence floor
+    double qualityMaxYawDegrees = 45.0;         // beyond this landmarks get unreliable
+    double qualityMaxPitchDegrees = 35.0;
+
     // --- Risk fusion (0..100). Weights are relative contributions. ---
     double wDrowsiness = 0.40;
     double wDistraction = 0.30;
@@ -79,6 +89,7 @@ struct Config {
     bool beep = true;                    // audible alarm
     bool developerMode = false;          // extra on-screen diagnostics
     bool logEvents = true;               // append events to logs/events.csv
+    bool privacyMode = false;            // no logging/image storage; metadata only
     std::string cascadeDir;              // Haar cascade dir (auto-detected if empty)
     std::string facemarkModel;           // dlib .dat or OpenCV .yaml (auto-detected)
     std::string phoneModel;              // YOLO .onnx path (optional)

@@ -61,6 +61,7 @@ add_executable(dms
     src/ConfigManager.cpp
     src/FaceTracker.cpp
     src/GazeEstimator.cpp
+    src/MonitoringQuality.cpp
     src/DrowsinessDetector.cpp
     src/DistractionDetector.cpp
     src/ObjectDetector.cpp

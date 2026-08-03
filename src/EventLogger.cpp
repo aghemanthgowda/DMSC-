@@ -17,7 +17,9 @@ bool pathExists(const std::string& p) {
 } // namespace
 
 EventLogger::EventLogger(const Config& cfg) : cfg_(cfg) {
-    if (!cfg_.logEvents) return;
+    // Privacy mode overrides logging entirely: metadata timeline stays in memory
+    // but nothing is written to disk.
+    if (!cfg_.logEvents || cfg_.privacyMode) return;
 #ifdef _WIN32
     _mkdir("logs");
 #else

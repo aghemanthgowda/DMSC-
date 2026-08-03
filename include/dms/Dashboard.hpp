@@ -31,6 +31,9 @@ public:
         double inferenceMs = 0.0;
         std::string backend;
         bool landmarksActive = false;
+        bool monitoringReliable = true;
+        std::string monitoringReason;
+        bool privacyMode = false;
         bool calibrating = false;
         double calibRemaining = 0.0;
         bool developer = false;

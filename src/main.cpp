@@ -7,6 +7,7 @@
 #include "dms/EventLogger.hpp"
 #include "dms/FaceTracker.hpp"
 #include "dms/GazeEstimator.hpp"
+#include "dms/MonitoringQuality.hpp"
 #include "dms/ObjectDetector.hpp"
 #include "dms/RiskEngine.hpp"
 
@@ -65,6 +66,7 @@ void printUsage(const char* prog) {
         "  --phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)\n"
         "  --cascades <dir>    Haar cascade directory (auto-detected if omitted)\n"
         "  --dev               start in developer mode\n"
+        "  --privacy           privacy mode: no logging / image storage\n"
         "  --no-mirror         do not mirror the view\n"
         "  --no-beep           disable the audible alarm\n"
         "  --no-log            do not write logs/events.csv\n"
@@ -93,6 +95,7 @@ int main(int argc, char** argv) {
         else if (a == "--phone-model") cfg.phoneModel = next();
         else if (a == "--cascades") cfg.cascadeDir = next();
         else if (a == "--dev") cfg.developerMode = true;
+        else if (a == "--privacy") cfg.privacyMode = true;
         else if (a == "--no-mirror") cfg.mirror = false;
         else if (a == "--no-beep") cfg.beep = false;
         else if (a == "--no-log") cfg.logEvents = false;
@@ -151,6 +154,7 @@ int main(int argc, char** argv) {
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, cfg.captureHeight);
 
     GazeEstimator gaze(cfg);
+    MonitoringQuality quality(cfg);
     DrowsinessDetector drowsy(cfg);
     DistractionDetector distract(cfg);
     RiskEngine riskEngine(cfg);
@@ -206,9 +210,12 @@ int main(int argc, char** argv) {
 
         const GazeResult g = gaze.estimate(frame, eff);
         const PhoneResult phone = phoneDet.detect(frame, t);
+        const MonitoringQuality::Result mq = quality.assess(frame, eff);
+        const bool monitoringReliable = eff.faceDetected ? mq.reliable : true;
         const auto dRes = drowsy.update(eff, t);
         const auto kRes = distract.update(eff, g, phone, frame.size(), t);
-        const auto risk = riskEngine.update(dRes, kRes, phone, driverPresent, t);
+        const auto risk =
+            riskEngine.update(dRes, kRes, phone, driverPresent, monitoringReliable, t);
 
         const bool calibrating = (t - calibStart) < cfg.calibrationSeconds;
         AlertManager::State alert;
@@ -242,6 +249,9 @@ int main(int argc, char** argv) {
         df.events = &logger.recent();
         df.fps = fps; df.inferenceMs = inferenceMs; df.backend = tracker.backendName();
         df.landmarksActive = tracker.usingLandmarks();
+        df.monitoringReliable = risk.monitoringReliable || !eff.faceDetected;
+        df.monitoringReason = mq.reason;
+        df.privacyMode = cfg.privacyMode;
         df.calibrating = calibrating;
         df.calibRemaining = std::max(0.0, cfg.calibrationSeconds - (t - calibStart));
         df.developer = cfg.developerMode;

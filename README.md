@@ -11,6 +11,30 @@ single stable driver-state assessment, shown on a professional live dashboard.
 > defaults, not calibrated clinical values, and gaze is an *approximate* visual
 > cue, not exact eye tracking.
 
+## AIS-184 scope & regulatory disclaimer
+
+This project is an **AIS-184 requirement-oriented DDAWS research/demo prototype
+— designed *with reference to* AIS-184 requirements**. AIS-184 is India's
+*Driver Drowsiness and Attention Warning System (DDAWS)* standard (ARAI / AISC,
+under MoRTH; reported to apply to vehicle categories M2, M3, N2, N3).
+
+**This software has NOT been type-approved or officially certified for AIS-184
+compliance**, and no claim of legal/regulatory compliance is made. The full
+official AIS-184 PDF could not be retrieved automatically (the ARAI host returned
+HTTP 403), so all clause-level specifics are marked **`VERIFY-OFFICIAL`** in the
+docs and must be checked against the official document from ARAI.
+
+Regulatory documentation:
+- [`docs/AIS184_TRACEABILITY.md`](docs/AIS184_TRACEABILITY.md) — requirement matrix + statuses
+- [`docs/AIS184_COMPLIANCE_REPORT.md`](docs/AIS184_COMPLIANCE_REPORT.md) — scope, limitations, disclaimer
+- [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) — 23-case manual test plan
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — modules, pipeline, core vs extended
+
+**Privacy:** all processing is local; frames are discarded after analysis; there
+is **no face-recognition / biometric identity database**; `--privacy` (or
+`privacy_mode`) disables all disk logging. Logs contain metadata only, never
+images.
+
 ![input](https://img.shields.io/badge/input-builtin_webcam-blue) ![lang](https://img.shields.io/badge/C%2B%2B-17-informational) ![cv](https://img.shields.io/badge/OpenCV-4-green) ![landmarks](https://img.shields.io/badge/landmarks-dlib_68-orange)
 
 ---

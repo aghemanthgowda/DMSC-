@@ -23,14 +23,18 @@ int severity(DriverState s) {
 RiskEngine::Result RiskEngine::update(const DrowsinessDetector::Result& drowsy,
                                       const DistractionDetector::Result& distract,
                                       const PhoneResult& phone, bool driverPresent,
-                                      double tSeconds) {
+                                      bool monitoringReliable, double tSeconds) {
     Result r;
+    r.monitoringReliable = monitoringReliable;
 
+    // When monitoring is unreliable we must NOT assert drowsiness/yawn evidence
+    // (AIS-184-oriented: distinguish "monitoring unreliable" from "driver drowsy").
     const double phoneScore = phone.phonePresent ? 100.0 : 0.0;
-    const double yawnScore = drowsy.yawning ? 100.0 : 0.0;
+    const double drowsyScore = monitoringReliable ? drowsy.score : 0.0;
+    const double yawnScore = (monitoringReliable && drowsy.yawning) ? 100.0 : 0.0;
 
     // Weighted blend (weights are configurable and normalized by their sum).
-    r.drowsyContribution = cfg_.wDrowsiness * drowsy.score;
+    r.drowsyContribution = cfg_.wDrowsiness * drowsyScore;
     r.distractionContribution = cfg_.wDistraction * distract.score;
     r.phoneContribution = cfg_.wPhone * phoneScore;
     r.yawnContribution = cfg_.wYawn * yawnScore;
@@ -57,9 +61,9 @@ RiskEngine::Result RiskEngine::update(const DrowsinessDetector::Result& drowsy,
     } else if (r.score >= cfg_.riskHighThreshold) {
         candidate = DriverState::HighRisk;
     } else if (r.score >= cfg_.riskWarnThreshold) {
-        if (phone.phonePresent && phoneScore >= drowsy.score) {
+        if (phone.phonePresent && phoneScore >= drowsyScore) {
             candidate = DriverState::PhoneUsage;
-        } else if (drowsy.score >= distract.score) {
+        } else if (drowsyScore >= distract.score) {
             candidate = DriverState::Drowsy;
         } else {
             candidate = DriverState::Distracted;
@@ -96,7 +100,10 @@ RiskEngine::Result RiskEngine::update(const DrowsinessDetector::Result& drowsy,
 
     // Reasons (for the panel/timeline), strongest first.
     if (!driverPresent) r.reasons.push_back(distract.message);
-    if (drowsy.level != DrowsyLevel::Alert) r.reasons.push_back(drowsy.message);
+    if (!monitoringReliable && driverPresent) r.reasons.push_back("Monitoring quality low");
+    if (monitoringReliable && drowsy.level != DrowsyLevel::Alert) {
+        r.reasons.push_back(drowsy.message);
+    }
     if (distract.level != DistractionLevel::Attentive && driverPresent) {
         r.reasons.push_back(distract.message);
     }

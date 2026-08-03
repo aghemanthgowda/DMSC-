@@ -53,6 +53,11 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readInto(fs, "phone_detect_every_n_frames", cfg.phoneDetectEveryNFrames);
     readInto(fs, "face_lost_grace_seconds", cfg.faceLostGraceSeconds);
     readInto(fs, "no_face_alarm_seconds", cfg.noFaceAlarmSeconds);
+    readInto(fs, "quality_min_face_width_fraction", cfg.qualityMinFaceWidthFraction);
+    readInto(fs, "quality_low_light_mean", cfg.qualityLowLightMean);
+    readInto(fs, "quality_min_confidence", cfg.qualityMinConfidence);
+    readInto(fs, "quality_max_yaw_degrees", cfg.qualityMaxYawDegrees);
+    readInto(fs, "quality_max_pitch_degrees", cfg.qualityMaxPitchDegrees);
     readInto(fs, "w_drowsiness", cfg.wDrowsiness);
     readInto(fs, "w_distraction", cfg.wDistraction);
     readInto(fs, "w_phone", cfg.wPhone);
@@ -72,6 +77,7 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readBool(fs, "beep", cfg.beep);
     readBool(fs, "developer_mode", cfg.developerMode);
     readBool(fs, "log_events", cfg.logEvents);
+    readBool(fs, "privacy_mode", cfg.privacyMode);
 
     fs.release();
     std::cout << "[ConfigManager] Loaded config from " << path << "\n";
@@ -108,6 +114,11 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "phone_detect_every_n_frames" << cfg.phoneDetectEveryNFrames;
     fs << "face_lost_grace_seconds" << cfg.faceLostGraceSeconds;
     fs << "no_face_alarm_seconds" << cfg.noFaceAlarmSeconds;
+    fs << "quality_min_face_width_fraction" << cfg.qualityMinFaceWidthFraction;
+    fs << "quality_low_light_mean" << cfg.qualityLowLightMean;
+    fs << "quality_min_confidence" << cfg.qualityMinConfidence;
+    fs << "quality_max_yaw_degrees" << cfg.qualityMaxYawDegrees;
+    fs << "quality_max_pitch_degrees" << cfg.qualityMaxPitchDegrees;
     fs << "w_drowsiness" << cfg.wDrowsiness;
     fs << "w_distraction" << cfg.wDistraction;
     fs << "w_phone" << cfg.wPhone;
@@ -127,6 +138,7 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "beep" << (cfg.beep ? 1 : 0);
     fs << "developer_mode" << (cfg.developerMode ? 1 : 0);
     fs << "log_events" << (cfg.logEvents ? 1 : 0);
+    fs << "privacy_mode" << (cfg.privacyMode ? 1 : 0);
 
     fs.release();
     return true;
