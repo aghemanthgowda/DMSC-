@@ -89,25 +89,48 @@ Without dlib the app still runs in a reduced Haar mode.
 
 ## Build & run — Windows (PowerShell)
 
+**Prerequisites:** Visual Studio 2022 ("Desktop development with C++") + CMake,
+and OpenCV prebuilt extracted to `C:\opencv\opencv\build`.
+
+dlib provides the 68-point landmarks. There are two ways to get it; **Option A
+(compile from source) is the most reliable** — no vcpkg, no toolchain file.
+
+### Option A — dlib from source (recommended)
+
 ```powershell
-# 1) Toolchain: Visual Studio 2022 ("Desktop development with C++") + CMake.
-# 2) OpenCV prebuilt: extract to C:\  ->  C:\opencv\opencv\build
-# 3) dlib via vcpkg (compiles dlib only, ~10-15 min):
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg install dlib:x64-windows
-# 4) landmark model (~96 MB, uncompressed):
-./scripts/download_landmark_model.ps1
-# 5) build:
+cd C:\Users\<you>\DMSC-
+git clone https://github.com/davisking/dlib.git       # dlib source into ./dlib
+./scripts/download_landmark_model.ps1                 # 68-point model (~96 MB)
+
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 $env:Path += ";C:\opencv\opencv\build\x64\vc16\bin"
-cmake -S . -B build -A x64 -DOpenCV_DIR=C:\opencv\opencv\build -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake -S . -B build -A x64 -DOpenCV_DIR=C:\opencv\opencv\build
 cmake --build build --config Release
-# 6) run:
 .\build\Release\dms.exe
 ```
 
-Confirm the configure log shows `DMS: dlib 68-point landmark mode ENABLED` and the
-startup log prints `Detection backend: dlib 68-point landmarks`.
+CMake automatically compiles the `./dlib` source into the build (the first build
+is a few minutes longer). No vcpkg and no `-DCMAKE_TOOLCHAIN_FILE` needed.
+
+### Option B — dlib via vcpkg
+
+```powershell
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg install dlib:x64-windows
+./scripts/download_landmark_model.ps1
+
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+$env:Path += ";C:\opencv\opencv\build\x64\vc16\bin"
+cmake -S . -B build -A x64 -DOpenCV_DIR=C:\opencv\opencv\build -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build build --config Release
+.\build\Release\dms.exe
+```
+
+**Either way**, the configure log must show `DMS: dlib 68-point landmark mode
+ENABLED` and startup must print `Detection backend: dlib 68-point landmarks`. If
+you instead see a red **HAAR MODE** banner, dlib was not compiled in — delete the
+`build` folder and re-run the `cmake -S . -B build ...` line.
 
 ## Build & run — Linux / macOS
 

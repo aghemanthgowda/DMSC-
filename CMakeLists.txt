@@ -27,13 +27,31 @@ if(DMS_USE_FACE)
     endif()
 endif()
 
-# dlib is optional. Found via its CMake config (installed system-wide, or via
-# vcpkg with the toolchain file). If absent, the build still works in Haar mode.
+# dlib is optional and found three ways, in order of convenience:
+#   1) an installed/vcpkg dlib via its CMake config (find_package), OR
+#   2) a local dlib SOURCE checkout compiled as part of this build - the most
+#      reliable path on Windows (no vcpkg, no toolchain file):
+#         git clone https://github.com/davisking/dlib.git
+#      then just build; CMake compiles dlib automatically.
+# If none is present the build still works in Haar mode.
 set(DMS_DLIB_AVAILABLE FALSE)
+set(DMS_DLIB_TARGET "")
 if(DMS_USE_DLIB)
     find_package(dlib CONFIG QUIET)
     if(dlib_FOUND)
         set(DMS_DLIB_AVAILABLE TRUE)
+        set(DMS_DLIB_TARGET dlib::dlib)
+        message(STATUS "DMS: dlib found via find_package")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/dlib/dlib/CMakeLists.txt")
+        add_subdirectory("${CMAKE_SOURCE_DIR}/dlib/dlib" dlib_build)
+        set(DMS_DLIB_AVAILABLE TRUE)
+        set(DMS_DLIB_TARGET dlib::dlib)
+        message(STATUS "DMS: dlib compiled from source at ./dlib")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/dlib/CMakeLists.txt")
+        add_subdirectory("${CMAKE_SOURCE_DIR}/dlib" dlib_build)
+        set(DMS_DLIB_AVAILABLE TRUE)
+        set(DMS_DLIB_TARGET dlib::dlib)
+        message(STATUS "DMS: dlib compiled from source at ./dlib")
     endif()
 endif()
 
@@ -57,7 +75,7 @@ target_link_libraries(dms PRIVATE ${OpenCV_LIBS})
 
 if(DMS_DLIB_AVAILABLE)
     target_compile_definitions(dms PRIVATE DMS_HAVE_DLIB)
-    target_link_libraries(dms PRIVATE dlib::dlib)
+    target_link_libraries(dms PRIVATE ${DMS_DLIB_TARGET})
     message(STATUS "DMS: dlib 68-point landmark mode ENABLED")
 else()
     message(STATUS "DMS: dlib landmark mode DISABLED (dlib not found)")

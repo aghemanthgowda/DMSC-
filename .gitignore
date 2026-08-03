@@ -1,8 +1,12 @@
 # Build output
 build/
+build_*/
 *.o
 *.obj
 *.exe
+
+# dlib source checkout (compiled from source; not committed)
+dlib/
 
 # Downloaded models (large, fetched via scripts/download_*_model scripts)
 models/*.yaml
