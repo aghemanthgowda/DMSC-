@@ -66,7 +66,8 @@ void printUsage(const char* prog) {
         "Driver Monitoring System (C++/OpenCV)\n"
         "Usage: " << prog << " [options]\n"
         "  --camera <n>        camera index (default 0)\n"
-        "  --model <path>      LBF facemark model (lbfmodel.yaml) for landmark mode\n"
+        "  --model <path>      landmark model: dlib .dat or OpenCV .yaml\n"
+        "                      (auto-detected from models/ if omitted)\n"
         "  --cascades <dir>    Haar cascade directory (auto-detected if omitted)\n"
         "  --no-mirror         do not mirror the view\n"
         "  --no-beep           disable the audible alarm\n"
@@ -96,17 +97,23 @@ int main(int argc, char** argv) {
                      "(the folder containing haarcascade_frontalface_default.xml).\n";
         return 1;
     }
-    // A conventional default location for the optional landmark model.
-    if (cfg.facemarkModel.empty() && fileExists("models/lbfmodel.yaml")) {
-        cfg.facemarkModel = "models/lbfmodel.yaml";
+    // Conventional default locations for the optional landmark model. Prefer the
+    // dlib 68-point model, then the OpenCV LBF model.
+    if (cfg.facemarkModel.empty()) {
+        if (fileExists("models/shape_predictor_68_face_landmarks.dat")) {
+            cfg.facemarkModel = "models/shape_predictor_68_face_landmarks.dat";
+        } else if (fileExists("models/lbfmodel.yaml")) {
+            cfg.facemarkModel = "models/lbfmodel.yaml";
+        }
     }
 
     FaceTracker tracker(cfg);
     if (!tracker.init()) return 1;
+    std::cout << "[info] Detection backend: " << tracker.backendName() << "\n";
     if (!tracker.usingLandmarks()) {
         std::cout << "[info] Running in Haar fallback mode (no landmark model). "
-                     "For EAR/head-pose accuracy run scripts/download_facemark_model.sh "
-                     "and pass --model models/lbfmodel.yaml\n";
+                     "For accurate eyes/yawn run scripts/download_landmark_model.sh "
+                     "(or .ps1) and rebuild with dlib.\n";
     }
 
     cv::VideoCapture cap(cfg.cameraIndex);

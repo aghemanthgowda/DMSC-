@@ -4,8 +4,10 @@ build/
 *.obj
 *.exe
 
-# Downloaded model (large, fetched via scripts/download_facemark_model.sh)
+# Downloaded models (large, fetched via scripts/download_*_model scripts)
 models/*.yaml
+models/*.dat
+models/*.bz2
 
 # Editor / OS
 .vscode/

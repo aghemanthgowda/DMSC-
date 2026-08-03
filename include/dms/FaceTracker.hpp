@@ -7,6 +7,10 @@
 #ifdef DMS_HAVE_FACE
 #include <opencv2/face.hpp>
 #endif
+#ifdef DMS_HAVE_DLIB
+#include <dlib/image_processing/frontal_face_detector.h>
+#include <dlib/image_processing/shape_predictor.h>
+#endif
 
 #include <string>
 
@@ -14,22 +18,23 @@ namespace dms {
 
 // Turns a raw BGR frame into a FaceObservation.
 //
-// Two detection paths, chosen automatically at init():
-//   * Landmark path  - if an LBF facemark model is provided, we fit 68 facial
-//                      landmarks and compute a real Eye-Aspect-Ratio (EAR),
-//                      Mouth-Aspect-Ratio (MAR) and head pose (solvePnP).
-//   * Fallback path  - otherwise we use Haar cascades for the face and eyes and
-//                      infer "eyes closed" from the absence of eye detections.
+// Detection backend, chosen automatically at init() by best available:
+//   * dlib       - dlib HOG face detector + 68-point shape predictor (.dat).
+//                  Most accurate: real EAR, MAR (yawns) and head pose.
+//   * OpenCV LBF - opencv-contrib facemark model (.yaml), also 68 points.
+//   * Haar       - bundled Haar cascades for face + eyes; "eyes closed" is
+//                  inferred from the absence of eye detections. Always works.
 class FaceTracker {
 public:
     explicit FaceTracker(const Config& cfg);
 
-    // Loads the required Haar cascades and, if facemarkModel is non-empty and
-    // valid, the optional landmark model. Returns false only when the mandatory
-    // cascades cannot be loaded.
+    // Loads the Haar cascades (required) and, if a model path is given, the best
+    // matching landmark backend. Returns false only if the Haar cascades (the
+    // universal fallback) cannot be loaded.
     bool init();
 
-    bool usingLandmarks() const { return facemarkLoaded_; }
+    bool usingLandmarks() const { return dlibLoaded_ || facemarkLoaded_; }
+    const char* backendName() const;
 
     FaceObservation process(const cv::Mat& frameBGR);
 
@@ -37,10 +42,18 @@ private:
     Config cfg_;
     cv::CascadeClassifier faceCascade_;
     cv::CascadeClassifier eyeCascade_;
+
 #ifdef DMS_HAVE_FACE
     cv::Ptr<cv::face::Facemark> facemark_;
 #endif
     bool facemarkLoaded_ = false;
+
+#ifdef DMS_HAVE_DLIB
+    dlib::frontal_face_detector detector_;
+    dlib::shape_predictor predictor_;
+    FaceObservation processDlib(const cv::Mat& frameBGR);
+#endif
+    bool dlibLoaded_ = false;
 
     void fallbackEyes(const cv::Mat& gray, FaceObservation& obs);
     void estimateHeadPose(FaceObservation& obs, const cv::Size& frameSize) const;

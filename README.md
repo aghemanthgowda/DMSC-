@@ -26,133 +26,133 @@ Built for a demo: one command to build, one command to run.
 The system fuses these into one status — **MONITORING → CAUTION → ALARM** —
 with a colour-coded banner, a red pulsing border, and a rate-limited beep.
 
-## Two detection modes (automatic)
+## Detection backends (auto-selected, best available)
 
-- **Landmark mode (recommended)** — 68-point facial landmarks give an accurate
-  EAR, real yawn detection and head-pose estimation. Needs a one-time model
-  download (see below).
-- **Haar fallback mode** — if no landmark model is present, the system uses
-  OpenCV's bundled Haar cascades for the face and eyes. Zero downloads, works
-  offline out of the box. Slightly less precise but fully functional.
+The program picks the most accurate backend available at startup and prints
+which one it is using:
 
-The program picks the best available mode at startup and tells you which one
-it is using.
+1. **dlib 68-point landmarks (recommended, most accurate)** — dlib's HOG face
+   detector plus a 68-point shape predictor give a real Eye-Aspect-Ratio
+   (precise blink/drowsy detection), Mouth-Aspect-Ratio (real yawn detection)
+   and head pose. Needs dlib at build time + a one-time model download.
+2. **OpenCV contrib landmarks** — same 68-point idea using the opencv-contrib
+   `face` module, if you built OpenCV with it.
+3. **Haar cascade (always available)** — bundled Haar cascades for face + eyes,
+   with "eyes closed" inferred from missing eye detections. Zero downloads,
+   works offline, but noticeably less accurate — it can lose the face at angles
+   and cannot measure yawns.
+
+> If face/eye/yawn detection feels inaccurate, you are almost certainly in
+> **Haar mode**. Install dlib and download the model (below) to jump to
+> backend #1.
 
 ---
 
 ## Requirements
 
 - A C++17 compiler, CMake ≥ 3.16
-- **OpenCV 4** (base modules required; the `face`/contrib module is optional and
-  only needed for landmark mode)
+- **OpenCV 4** (base modules only)
+- **dlib** (optional but recommended — enables the accurate 68-point backend)
 
 ---
 
 ## Windows (PowerShell)
 
-> These are the steps for a Windows laptop — the folder examples use
-> `C:\Users\Heman\DMS-NXP`. Run everything from the project folder in PowerShell.
+> Run everything from the project folder (e.g. `C:\Users\<you>\DMSC-`) in
+> PowerShell. Paths below assume OpenCV was extracted to `C:\opencv\opencv\build`
+> — adjust if yours differs.
 
 ### 1. Install the toolchain
 
 - **Visual Studio 2022** with the *"Desktop development with C++"* workload
-  (gives you the MSVC compiler). The *Community* edition is free.
+  (the MSVC compiler). The free *Community* edition is fine.
 - **CMake** — <https://cmake.org/download/> (tick "Add CMake to PATH").
 
-### 2. Install OpenCV — pick ONE
+### 2. Install OpenCV (prebuilt — no compiling)
 
-**Option A — Prebuilt OpenCV (fastest, no compiling). Runs in Haar mode.**
+Download the Windows package from <https://opencv.org/releases/>, run it, and
+extract to `C:\`. This creates `C:\opencv\opencv\build`. The prebuilt DLL lives
+in `...\build\x64\vc16\bin`.
 
-1. Download the Windows package from <https://opencv.org/releases/> and run it
-   to extract, e.g. to `C:\opencv`.
-2. Add the DLL folder to your PATH so the app can find `opencv_world4xx.dll`:
-   ```powershell
-   $env:Path += ";C:\opencv\build\x64\vc16\bin"
-   ```
-   (Use `vc16` for VS 2019/2022; check which folder exists.)
+### 3. Install dlib for the accurate 68-point backend (recommended)
 
-The official prebuilt package does **not** include the `face` module, so
-landmark mode is off — but the full drowsiness/distraction demo still works.
-
-**Option B — vcpkg with contrib (enables landmark mode).** Compiles OpenCV, so
-it takes a while, but you get accurate EAR + yawns + head pose:
+The prebuilt OpenCV has no landmark model, so on its own the app runs in Haar
+mode (less accurate). dlib adds precise eye-closure, yawn and head-pose
+detection. Install it with vcpkg (this compiles dlib only — much faster than
+rebuilding OpenCV):
 
 ```powershell
 git clone https://github.com/microsoft/vcpkg C:\vcpkg
 C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg install "opencv4[contrib]:x64-windows"
-$env:VCPKG_ROOT = "C:\vcpkg"
+C:\vcpkg\vcpkg install dlib:x64-windows
 ```
 
-### 3. Build
+Then download the landmark model (~96 MB, served uncompressed):
 
 ```powershell
-# Option A (prebuilt): tell CMake where OpenCV is
-./scripts/build.ps1 -OpenCVDir C:\opencv\build
-
-# Option B (vcpkg): $env:VCPKG_ROOT is picked up automatically
-./scripts/build.ps1
+./scripts/download_landmark_model.ps1
 ```
 
-This produces `build\Release\dms.exe`.
+> Skipping dlib? The app still builds and runs in Haar mode.
 
-### 4. Run
+### 4. Build
 
 ```powershell
-# Haar mode (works with either OpenCV option):
+$env:Path += ";C:\opencv\opencv\build\x64\vc16\bin"
+cmake -S . -B build -A x64 `
+  -DOpenCV_DIR=C:\opencv\opencv\build `
+  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build build --config Release
+```
+
+(Omit the `-DCMAKE_TOOLCHAIN_FILE=...` line if you skipped dlib.) The configure
+output prints `dlib 68-point landmark mode ENABLED` when dlib was found. This
+produces `build\Release\dms.exe`.
+
+### 5. Run
+
+```powershell
 .\build\Release\dms.exe
-
-# Landmark mode (Option B / vcpkg only):
-./scripts/download_facemark_model.ps1
-.\build\Release\dms.exe --model models\lbfmodel.yaml
 ```
 
-Press **`q`** or **`ESC`** in the window to quit. Allow camera access if Windows
-prompts. If the window says *"Could not open camera"*, close other apps using the
-webcam (Teams, Zoom) or try `--camera 1`.
+The model in `models\` is picked up automatically, so no flags are needed —
+the startup log prints `Detection backend: dlib 68-point landmarks`.
+
+Press **`q`** or **`ESC`** to quit. Allow camera access if Windows prompts. If it
+says *"Could not open camera"*, close other apps using the webcam (Teams, Zoom)
+or try `--camera 1`. If a fresh terminal can't find `opencv_world4100.dll`,
+re-run the `$env:Path += ...` line before launching.
 
 ---
 
 ## Linux / macOS
 
-Install OpenCV:
+Install OpenCV + dlib:
 
 ```bash
-# Ubuntu / Debian (includes the contrib 'face' module)
-sudo apt-get install -y libopencv-dev
+# Ubuntu / Debian
+sudo apt-get install -y libopencv-dev libdlib-dev libblas-dev liblapack-dev
 
-# macOS (Homebrew) — includes opencv_contrib
-brew install opencv
+# macOS (Homebrew)
+brew install opencv dlib
 ```
 
-Build:
+Download the 68-point landmark model, then build and run:
 
 ```bash
-./scripts/build.sh
-# or manually:
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-```
-
-Run:
-
-```bash
-# Haar fallback mode (works immediately):
+./scripts/download_landmark_model.sh     # one-time, ~96 MB -> models/
+./scripts/build.sh                       # or: cmake -S . -B build && cmake --build build --parallel
 ./build/dms
-
-# Landmark mode (accurate EAR + yawns + head pose):
-./scripts/download_facemark_model.sh     # one-time, ~54 MB -> models/lbfmodel.yaml
-./build/dms --model models/lbfmodel.yaml
 ```
 
-> If `models/lbfmodel.yaml` exists, the program picks it up automatically.
-> Press **`q`** or **`ESC`** in the window to quit.
+> The model in `models/` is auto-detected, so no flags are needed. The startup
+> log prints the active backend. Press **`q`** or **`ESC`** to quit.
 
 ### Command-line options
 
 ```
 --camera <n>        camera index (default 0)
---model <path>      LBF facemark model (lbfmodel.yaml) for landmark mode
+--model <path>      landmark model: dlib .dat or OpenCV .yaml (auto-detected from models/)
 --cascades <dir>    Haar cascade directory (auto-detected if omitted)
 --no-mirror         do not mirror the view
 --no-beep           disable the audible alarm

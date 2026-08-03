@@ -3,6 +3,11 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 
+#ifdef DMS_HAVE_DLIB
+#include <dlib/opencv.h>
+#include <dlib/image_processing.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -11,7 +16,12 @@ namespace dms {
 
 namespace {
 
-#ifdef DMS_HAVE_FACE
+bool endsWith(const std::string& s, const std::string& suffix) {
+    return s.size() >= suffix.size() &&
+           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+#if defined(DMS_HAVE_FACE) || defined(DMS_HAVE_DLIB)
 double dist(const cv::Point2f& a, const cv::Point2f& b) {
     return cv::norm(a - b);
 }
@@ -33,11 +43,28 @@ double mouthAspectRatio(const std::vector<cv::Point2f>& lm) {
     if (horizontal < 1e-6) return 0.0;
     return vertical / (2.0 * horizontal);
 }
-#endif  // DMS_HAVE_FACE
+
+// Fill EAR / MAR / eyesClosed from a populated 68-point landmark set.
+void fillLandmarkMetrics(FaceObservation& obs, const Config& cfg) {
+    static const int L[6] = {36, 37, 38, 39, 40, 41};
+    static const int R[6] = {42, 43, 44, 45, 46, 47};
+    const double earL = eyeAspectRatio(obs.landmarks, L);
+    const double earR = eyeAspectRatio(obs.landmarks, R);
+    obs.ear = 0.5 * (earL + earR);
+    obs.mar = mouthAspectRatio(obs.landmarks);
+    obs.eyesClosed = obs.ear < cfg.earThreshold;
+}
+#endif  // DMS_HAVE_FACE || DMS_HAVE_DLIB
 
 } // namespace
 
 FaceTracker::FaceTracker(const Config& cfg) : cfg_(cfg) {}
+
+const char* FaceTracker::backendName() const {
+    if (dlibLoaded_) return "dlib 68-point landmarks";
+    if (facemarkLoaded_) return "OpenCV 68-point landmarks";
+    return "Haar cascade";
+}
 
 bool FaceTracker::init() {
     const std::string faceXml = cfg_.cascadeDir + "/haarcascade_frontalface_default.xml";
@@ -53,21 +80,49 @@ bool FaceTracker::init() {
     }
 
     if (!cfg_.facemarkModel.empty()) {
-#ifdef DMS_HAVE_FACE
-        try {
-            facemark_ = cv::face::FacemarkLBF::create();
-            facemark_->loadModel(cfg_.facemarkModel);
-            facemarkLoaded_ = true;
-            std::cout << "[FaceTracker] Loaded landmark model: " << cfg_.facemarkModel << "\n";
-        } catch (const cv::Exception&) {
-            std::cerr << "[FaceTracker] Could not load facemark model (" << cfg_.facemarkModel
-                      << "); falling back to Haar eye detection.\n";
-            facemarkLoaded_ = false;
+        const bool isDat = endsWith(cfg_.facemarkModel, ".dat");
+
+#ifdef DMS_HAVE_DLIB
+        if (isDat) {
+            try {
+                detector_ = dlib::get_frontal_face_detector();
+                dlib::deserialize(cfg_.facemarkModel) >> predictor_;
+                dlibLoaded_ = true;
+                std::cout << "[FaceTracker] Loaded dlib 68-point model: " << cfg_.facemarkModel
+                          << "\n";
+            } catch (const std::exception& e) {
+                std::cerr << "[FaceTracker] Could not load dlib model (" << e.what()
+                          << "); falling back to Haar.\n";
+                dlibLoaded_ = false;
+            }
         }
-#else
-        std::cerr << "[FaceTracker] This build has no OpenCV 'face' module; ignoring --model "
-                     "and using Haar fallback mode.\n";
 #endif
+#ifdef DMS_HAVE_FACE
+        if (!dlibLoaded_ && !isDat) {
+            try {
+                facemark_ = cv::face::FacemarkLBF::create();
+                facemark_->loadModel(cfg_.facemarkModel);
+                facemarkLoaded_ = true;
+                std::cout << "[FaceTracker] Loaded OpenCV landmark model: " << cfg_.facemarkModel
+                          << "\n";
+            } catch (const cv::Exception&) {
+                std::cerr << "[FaceTracker] Could not load OpenCV facemark model ("
+                          << cfg_.facemarkModel << "); falling back to Haar.\n";
+                facemarkLoaded_ = false;
+            }
+        }
+#endif
+        if (!dlibLoaded_ && !facemarkLoaded_) {
+            if (isDat) {
+                std::cerr << "[FaceTracker] '" << cfg_.facemarkModel
+                          << "' is a dlib model but this build has no dlib support; "
+                             "using Haar fallback.\n";
+            } else {
+                std::cerr << "[FaceTracker] '" << cfg_.facemarkModel
+                          << "' needs the OpenCV 'face' module which is missing; "
+                             "using Haar fallback.\n";
+            }
+        }
     }
     return true;
 }
@@ -134,7 +189,55 @@ void FaceTracker::estimateHeadPose(FaceObservation& obs, const cv::Size& frameSi
     obs.hasHeadPose = true;
 }
 
+#ifdef DMS_HAVE_DLIB
+FaceObservation FaceTracker::processDlib(const cv::Mat& frameBGR) {
+    FaceObservation obs;
+
+    // HOG detection is the costly step, so run it on a half-size image and scale
+    // the box back up. The 68-point predictor then runs on the full-res frame.
+    const double scale = 0.5;
+    cv::Mat small;
+    cv::resize(frameBGR, small, cv::Size(), scale, scale, cv::INTER_LINEAR);
+
+    dlib::cv_image<dlib::bgr_pixel> dsmall(small);
+    std::vector<dlib::rectangle> dets = detector_(dsmall);
+    if (dets.empty()) return obs;
+
+    const dlib::rectangle best = *std::max_element(
+        dets.begin(), dets.end(),
+        [](const dlib::rectangle& a, const dlib::rectangle& b) { return a.area() < b.area(); });
+
+    const dlib::rectangle full(
+        static_cast<long>(best.left() / scale), static_cast<long>(best.top() / scale),
+        static_cast<long>(best.right() / scale), static_cast<long>(best.bottom() / scale));
+
+    obs.face = cv::Rect(cv::Point(static_cast<int>(full.left()), static_cast<int>(full.top())),
+                        cv::Point(static_cast<int>(full.right()) + 1,
+                                  static_cast<int>(full.bottom()) + 1));
+    obs.face &= cv::Rect(0, 0, frameBGR.cols, frameBGR.rows);
+    obs.faceDetected = true;
+
+    dlib::cv_image<dlib::bgr_pixel> dfull(frameBGR);
+    const dlib::full_object_detection shape = predictor_(dfull, full);
+    if (shape.num_parts() == 68) {
+        obs.landmarks.reserve(68);
+        for (unsigned i = 0; i < 68; ++i) {
+            obs.landmarks.emplace_back(static_cast<float>(shape.part(i).x()),
+                                       static_cast<float>(shape.part(i).y()));
+        }
+        obs.hasLandmarks = true;
+        fillLandmarkMetrics(obs, cfg_);
+        estimateHeadPose(obs, frameBGR.size());
+    }
+    return obs;
+}
+#endif  // DMS_HAVE_DLIB
+
 FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
+#ifdef DMS_HAVE_DLIB
+    if (dlibLoaded_) return processDlib(frameBGR);
+#endif
+
     FaceObservation obs;
 
     cv::Mat gray;
@@ -162,20 +265,12 @@ FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
             shapes[0].size() == 68) {
             obs.landmarks = shapes[0];
             obs.hasLandmarks = true;
-
-            static const int L[6] = {36, 37, 38, 39, 40, 41};
-            static const int R[6] = {42, 43, 44, 45, 46, 47};
-            const double earL = eyeAspectRatio(obs.landmarks, L);
-            const double earR = eyeAspectRatio(obs.landmarks, R);
-            obs.ear = 0.5 * (earL + earR);
-            obs.mar = mouthAspectRatio(obs.landmarks);
-            obs.eyesClosed = obs.ear < cfg_.earThreshold;
-
+            fillLandmarkMetrics(obs, cfg_);
             estimateHeadPose(obs, frameBGR.size());
             return obs;
         }
     }
-#endif  // DMS_HAVE_FACE
+#endif
 
     // Fallback path (no landmarks): use the eye cascade.
     fallbackEyes(gray, obs);
