@@ -24,18 +24,39 @@ bool fileExists(const std::string& p) {
     return !p.empty() && stat(p.c_str(), &st) == 0;
 }
 
-// Find the OpenCV Haar cascade directory across common install layouts.
-std::string autoDetectCascadeDir() {
-    if (const char* env = std::getenv("OPENCV_HAAR_DIR"); env && fileExists(env)) return env;
-    const char* candidates[] = {
+// Directory portion of a path (handles both / and \ separators).
+std::string dirOf(const std::string& p) {
+    const auto s = p.find_last_of("/\\");
+    return s == std::string::npos ? std::string(".") : p.substr(0, s);
+}
+
+// Find the Haar cascade directory. We first look for the copy bundled in the
+// repo's data/ folder (so the demo is self-contained and cross-platform), then
+// fall back to common OpenCV install layouts on Linux/macOS/Windows.
+std::string autoDetectCascadeDir(const std::string& argv0) {
+    auto hasCascade = [](const std::string& d) {
+        return fileExists(d + "/haarcascade_frontalface_default.xml");
+    };
+    if (const char* env = std::getenv("OPENCV_HAAR_DIR"); env && hasCascade(env)) return env;
+
+    const std::string exeDir = dirOf(argv0);
+    const std::string candidates[] = {
+        // Bundled with the project, relative to the working directory...
+        "data", "../data", "../../data", "../../../data",
+        // ...and relative to the executable (build/Release/dms.exe -> ../../data).
+        exeDir + "/data", exeDir + "/../data", exeDir + "/../../data",
+        // System installs.
         "/usr/share/opencv4/haarcascades",
         "/usr/local/share/opencv4/haarcascades",
         "/usr/share/opencv/haarcascades",
         "/opt/homebrew/share/opencv4/haarcascades",
         "/usr/local/Cellar/opencv/share/opencv4/haarcascades",
+        // Common Windows prebuilt-OpenCV locations.
+        "C:/opencv/opencv/build/etc/haarcascades",
+        "C:/opencv/build/etc/haarcascades",
     };
-    for (const char* c : candidates) {
-        if (fileExists(std::string(c) + "/haarcascade_frontalface_default.xml")) return c;
+    for (const auto& c : candidates) {
+        if (hasCascade(c)) return c;
     }
     return "";
 }
@@ -69,7 +90,7 @@ int main(int argc, char** argv) {
         else { std::cerr << "Unknown option: " << a << "\n"; printUsage(argv[0]); return 1; }
     }
 
-    if (cfg.cascadeDir.empty()) cfg.cascadeDir = autoDetectCascadeDir();
+    if (cfg.cascadeDir.empty()) cfg.cascadeDir = autoDetectCascadeDir(argv[0]);
     if (cfg.cascadeDir.empty()) {
         std::cerr << "Could not locate Haar cascades. Pass --cascades <dir> "
                      "(the folder containing haarcascade_frontalface_default.xml).\n";
