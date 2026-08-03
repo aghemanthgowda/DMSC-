@@ -60,6 +60,8 @@ DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs
         double smoothed = 0.0, threshold = 0.0;
         eyesClosed = decideEyesClosed(obs.ear, tSeconds, smoothed, threshold);
         r.ear = smoothed;
+        r.earLeft = obs.earLeft;
+        r.earRight = obs.earRight;
         r.earThreshold = threshold;
         r.calibrating = (tSeconds - startTime_) < cfg_.earBaselineWindowSeconds;
     } else {
@@ -77,6 +79,7 @@ DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs
             ++blinkCount_;
             blinkTimes_.push_back(tSeconds);
         }
+        if (dur >= cfg_.longBlinkSeconds) ++longBlink_;
         closed_ = false;
     }
     if (closed_) {
@@ -102,6 +105,7 @@ DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs
     }
     r.blinkCount = blinkCount_;
     r.blinkRate = static_cast<double>(blinkTimes_.size());
+    r.longBlinkCount = longBlink_;
 
     // --- Yawn detection (landmark path only) ---
     if (obs.mar >= 0.0) {
@@ -124,19 +128,27 @@ DrowsinessDetector::Result DrowsinessDetector::update(const FaceObservation& obs
     }
     r.yawnCount = yawnCount_;
 
-    // --- Severity ---
-    if (r.closureSeconds >= cfg_.eyeClosedAlarmSeconds || r.perclos >= cfg_.perclosAlarm) {
-        r.level = 2;
-        r.message = r.closureSeconds >= cfg_.eyeClosedAlarmSeconds
-                        ? "DROWSY - eyes closed!"
-                        : "DROWSY - high PERCLOS";
-    } else if (r.perclos >= cfg_.perclosWarn || r.yawning) {
-        r.level = 1;
-        r.message = r.yawning ? "Yawning detected" : "Fatigue building";
+    // --- Drowsiness score (0..100) + 4-level classification ---
+    // The score is the strongest fatigue evidence, nudged by yawning; the level
+    // adds explicit prolonged-closure / PERCLOS gates so a clear microsleep is
+    // always CRITICAL regardless of the blended score.
+    const double sClosure = std::min(1.0, r.closureSeconds / cfg_.eyeClosedAlarmSeconds);
+    const double sPerclos = std::min(1.0, r.perclos / cfg_.perclosAlarm);
+    double sev = std::max(sClosure, sPerclos);
+    if (r.yawning) sev = std::min(1.0, sev + 0.15);
+    r.score = 100.0 * sev;
+
+    if (r.closureSeconds >= cfg_.eyeClosedAlarmSeconds || r.score >= 80.0) {
+        r.level = DrowsyLevel::Critical;
+    } else if (r.closureSeconds >= cfg_.eyeClosedDrowsySeconds ||
+               r.perclos >= cfg_.perclosAlarm || r.score >= 50.0) {
+        r.level = DrowsyLevel::Drowsy;
+    } else if (r.perclos >= cfg_.perclosWarn || r.yawning || r.score >= 25.0) {
+        r.level = DrowsyLevel::Possible;
     } else {
-        r.level = 0;
-        r.message = "Alert";
+        r.level = DrowsyLevel::Alert;
     }
+    r.message = toString(r.level);
     return r;
 }
 

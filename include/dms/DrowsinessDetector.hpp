@@ -18,12 +18,17 @@ public:
         double perclos = 0.0;         // fraction of the window with eyes closed [0..1]
         int blinkCount = 0;
         double blinkRate = 0.0;       // blinks per minute (rolling 60s)
+        int longBlinkCount = 0;       // blinks longer than cfg.longBlinkSeconds
         int yawnCount = 0;
         bool yawning = false;
-        int level = 0;                // 0 ok, 1 warning, 2 alarm
+
+        DrowsyLevel level = DrowsyLevel::Alert;  // ALERT/POSSIBLE/DROWSY/CRITICAL
+        double score = 0.0;           // 0..100 drowsiness score for risk fusion
         std::string message;
 
         double ear = -1.0;            // smoothed EAR (>=0 with landmarks)
+        double earLeft = -1.0;
+        double earRight = -1.0;
         double earThreshold = 0.0;    // adaptive eyes-closed threshold in use
         double mar = -1.0;            // smoothed MAR (>=0 with landmarks)
         bool calibrating = false;     // still learning the open-eye baseline
@@ -40,6 +45,7 @@ private:
     double closureStart_ = 0.0;
 
     int blinkCount_ = 0;
+    int longBlink_ = 0;
     int yawnCount_ = 0;
     bool mouthOpen_ = false;
     double mouthOpenStart_ = 0.0;

@@ -8,6 +8,10 @@ build/
 models/*.yaml
 models/*.dat
 models/*.bz2
+models/*.onnx
+
+# Runtime event logs
+logs/
 
 # Editor / OS
 .vscode/

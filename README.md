@@ -1,196 +1,214 @@
-# Driver Monitoring System (C++ / OpenCV)
+# Driver Monitoring System (C++ / OpenCV / dlib)
 
-A self-contained **driver monitoring system (DMS)** that runs entirely on a
+A real-time, AI-based **Driver Monitoring System (DMS)** that runs entirely on a
 laptop using its **built-in webcam** — no external camera, no cloud, no extra
-hardware. It watches the driver in real time and raises escalating visual and
-audible alerts for **drowsiness** and **distraction**, all shown in a single
-live OpenCV window.
+hardware. It fuses face, eyes, blinks, PERCLOS, yawning, head pose and
+(approximate) gaze through temporal filtering and a central risk engine into a
+single stable driver-state assessment, shown on a professional live dashboard.
 
-Built for a demo: one command to build, one command to run.
+> **Research / demonstration prototype — NOT an automotive safety-certified or
+> production system.** Metrics such as EAR/PERCLOS thresholds are sensible
+> defaults, not calibrated clinical values, and gaze is an *approximate* visual
+> cue, not exact eye tracking.
 
-![mode](https://img.shields.io/badge/input-builtin_webcam-blue) ![lang](https://img.shields.io/badge/C%2B%2B-17-informational) ![deps](https://img.shields.io/badge/deps-OpenCV_4-green)
+![input](https://img.shields.io/badge/input-builtin_webcam-blue) ![lang](https://img.shields.io/badge/C%2B%2B-17-informational) ![cv](https://img.shields.io/badge/OpenCV-4-green) ![landmarks](https://img.shields.io/badge/landmarks-dlib_68-orange)
 
 ---
 
-## What it detects
+## What it does
 
-| Signal | How | Alert |
-| --- | --- | --- |
-| **Eye closure / microsleep** | Eye-Aspect-Ratio (EAR) from 68 facial landmarks, or eye-cascade presence in fallback mode | Alarm when eyes stay closed ≥ 1.2 s |
-| **PERCLOS (fatigue)** | % of time eyes are closed over a rolling 60 s window | Warning ≥ 15 %, alarm ≥ 30 % |
-| **Blink rate** | Blink counting with duration gating | Shown live (blinks/min) |
-| **Yawning** | Mouth-Aspect-Ratio (MAR) sustained over time *(landmark mode)* | Warning while yawning |
-| **Looking away** | Head pose (yaw/pitch via `solvePnP`), or face-offset heuristic in fallback | Warning, then alarm ≥ 2 s |
-| **Driver absent** | No face detected | Alarm ≥ 1.5 s ("eyes off road") |
+| Subsystem | Signals | Output |
+|---|---|---|
+| **Face** | dlib HOG detection, confidence, multi-face → primary driver, face-loss grace | bounding box + confidence, "driver absent" (debounced) |
+| **Landmarks** | 68 points (eyes, lids, nose, mouth, jaw) | contours + per-region metrics |
+| **Eyes / EAR** | left, right, average EAR, **auto-calibrated** threshold, smoothing | open / blink / long-blink / prolonged closure |
+| **Blinks** | count, rate/min, duration, long-blink count | fatigue cue |
+| **PERCLOS** | rolling % eyes-closed over a configurable window | fatigue cue |
+| **Drowsiness** | EAR + PERCLOS + closure + blinks + yawns (temporal) | **ALERT / POSSIBLE / DROWSY / CRITICAL** + 0–100 score |
+| **Yawning** | Mouth-Aspect-Ratio (MAR), duration-gated | yawn count + "yawning" |
+| **Head pose** | yaw / pitch / roll via `solvePnP`, EMA-smoothed | forward / left / right / up / down / tilted |
+| **Gaze (approx)** | pupil offset in each eye box | forward / left / right / up / down |
+| **Phone** *(optional)* | YOLO via ONNX Runtime, low-FPS + temporal confirm | phone detected (Phase 2) |
+| **Distraction** | head + gaze + phone (temporal) | **ATTENTIVE / BRIEF / DISTRACTED / HIGHLY** + 0–100 |
+| **Risk engine** | weighted fusion + **state machine (hysteresis)** | 0–100 risk, driver state, alert level |
+| **Alerts** | level 0–3, cooldown, escalation, recovery | visual banner + audible alarm |
+| **Logging** | events + timestamps | in-app timeline + `logs/events.csv` |
 
-The system fuses these into one status — **MONITORING → CAUTION → ALARM** —
-with a colour-coded banner, a red pulsing border, and a rate-limited beep.
+**Driver states:** SAFE · ATTENTION REQUIRED · DROWSY · DISTRACTED · PHONE USAGE
+· HIGH RISK · CRITICAL.
 
-## Detection backends (auto-selected, best available)
+---
 
-The program picks the most accurate backend available at startup and prints
-which one it is using:
+## Architecture
 
-1. **dlib 68-point landmarks (recommended, most accurate)** — dlib's HOG face
-   detector plus a 68-point shape predictor give a real Eye-Aspect-Ratio
-   (precise blink/drowsy detection), Mouth-Aspect-Ratio (real yawn detection)
-   and head pose. Needs dlib at build time + a one-time model download.
-2. **OpenCV contrib landmarks** — same 68-point idea using the opencv-contrib
-   `face` module, if you built OpenCV with it.
-3. **Haar cascade (always available)** — bundled Haar cascades for face + eyes,
-   with "eyes closed" inferred from missing eye detections. Zero downloads,
-   works offline, but noticeably less accurate — it can lose the face at angles
-   and cannot measure yawns.
+Clean, single-responsibility modules under `include/dms` + `src` (no logic dumped
+in `main.cpp`):
 
-> If face/eye/yawn detection feels inaccurate, you are almost certainly in
-> **Haar mode**. Install dlib and download the model (below) to jump to
-> backend #1.
+```
+Camera/main.cpp  capture loop, timing, keys, wiring
+ConfigManager    load/save config/config.json (via OpenCV FileStorage)
+FaceTracker      face detection + 68 landmarks + EAR/MAR/head-pose + confidence
+GazeEstimator    approximate pupil-offset gaze
+DrowsinessDetector  EAR smoothing/calibration, PERCLOS, blinks, yawns, 4 levels
+DistractionDetector head-pose + gaze + phone fusion, 4 levels
+ObjectDetector   optional YOLO/ONNX phone detection (temporal-confirmed)
+RiskEngine       weighted fusion → 0–100 + DriverState + hysteresis state machine
+AlertManager     alert levels, cooldown, escalation, audible alarm
+EventLogger      rolling timeline + CSV
+Dashboard        professional OpenCV dashboard (feed + panel + gauge + timeline)
+```
+
+Data flow each frame:
+`camera → FaceTracker → {Gaze, Drowsiness, Distraction(+Phone)} → RiskEngine → AlertManager → EventLogger → Dashboard`.
+
+### Folder structure
+
+```
+dmsc-/
+├── CMakeLists.txt
+├── config/config.json          # all thresholds (documented below)
+├── data/                       # bundled Haar cascades (fallback)
+├── include/dms/*.hpp
+├── src/*.cpp
+├── scripts/                    # build + model-download helpers (.sh / .ps1)
+├── models/                     # downloaded models (git-ignored)
+└── logs/events.csv             # runtime event log (git-ignored)
+```
 
 ---
 
 ## Requirements
 
-- A C++17 compiler, CMake ≥ 3.16
-- **OpenCV 4** (base modules only)
-- **dlib** (optional but recommended — enables the accurate 68-point backend)
+- C++17 compiler, CMake ≥ 3.16
+- **OpenCV 4** (base modules)
+- **dlib** (recommended — enables the accurate 68-point backend)
+- *(optional, Phase 2)* ONNX Runtime for phone detection
 
----
+The 68-point landmark backend needs a model file (`shape_predictor_68_face_landmarks.dat`).
+Without dlib the app still runs in a reduced Haar mode.
 
-## Windows (PowerShell)
-
-> Run everything from the project folder (e.g. `C:\Users\<you>\DMSC-`) in
-> PowerShell. Paths below assume OpenCV was extracted to `C:\opencv\opencv\build`
-> — adjust if yours differs.
-
-### 1. Install the toolchain
-
-- **Visual Studio 2022** with the *"Desktop development with C++"* workload
-  (the MSVC compiler). The free *Community* edition is fine.
-- **CMake** — <https://cmake.org/download/> (tick "Add CMake to PATH").
-
-### 2. Install OpenCV (prebuilt — no compiling)
-
-Download the Windows package from <https://opencv.org/releases/>, run it, and
-extract to `C:\`. This creates `C:\opencv\opencv\build`. The prebuilt DLL lives
-in `...\build\x64\vc16\bin`.
-
-### 3. Install dlib for the accurate 68-point backend (recommended)
-
-The prebuilt OpenCV has no landmark model, so on its own the app runs in Haar
-mode (less accurate). dlib adds precise eye-closure, yawn and head-pose
-detection. Install it with vcpkg (this compiles dlib only — much faster than
-rebuilding OpenCV):
+## Build & run — Windows (PowerShell)
 
 ```powershell
+# 1) Toolchain: Visual Studio 2022 ("Desktop development with C++") + CMake.
+# 2) OpenCV prebuilt: extract to C:\  ->  C:\opencv\opencv\build
+# 3) dlib via vcpkg (compiles dlib only, ~10-15 min):
 git clone https://github.com/microsoft/vcpkg C:\vcpkg
 C:\vcpkg\bootstrap-vcpkg.bat
 C:\vcpkg\vcpkg install dlib:x64-windows
-```
-
-Then download the landmark model (~96 MB, served uncompressed):
-
-```powershell
+# 4) landmark model (~96 MB, uncompressed):
 ./scripts/download_landmark_model.ps1
-```
-
-> Skipping dlib? The app still builds and runs in Haar mode.
-
-### 4. Build
-
-```powershell
+# 5) build:
 $env:Path += ";C:\opencv\opencv\build\x64\vc16\bin"
-cmake -S . -B build -A x64 `
-  -DOpenCV_DIR=C:\opencv\opencv\build `
-  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake -S . -B build -A x64 -DOpenCV_DIR=C:\opencv\opencv\build -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
 cmake --build build --config Release
-```
-
-(Omit the `-DCMAKE_TOOLCHAIN_FILE=...` line if you skipped dlib.) The configure
-output prints `dlib 68-point landmark mode ENABLED` when dlib was found. This
-produces `build\Release\dms.exe`.
-
-### 5. Run
-
-```powershell
+# 6) run:
 .\build\Release\dms.exe
 ```
 
-The model in `models\` is picked up automatically, so no flags are needed —
-the startup log prints `Detection backend: dlib 68-point landmarks`.
+Confirm the configure log shows `DMS: dlib 68-point landmark mode ENABLED` and the
+startup log prints `Detection backend: dlib 68-point landmarks`.
 
-Press **`q`** or **`ESC`** to quit. Allow camera access if Windows prompts. If it
-says *"Could not open camera"*, close other apps using the webcam (Teams, Zoom)
-or try `--camera 1`. If a fresh terminal can't find `opencv_world4100.dll`,
-re-run the `$env:Path += ...` line before launching.
-
----
-
-## Linux / macOS
-
-Install OpenCV + dlib:
+## Build & run — Linux / macOS
 
 ```bash
-# Ubuntu / Debian
-sudo apt-get install -y libopencv-dev libdlib-dev libblas-dev liblapack-dev
-
-# macOS (Homebrew)
-brew install opencv dlib
-```
-
-Download the 68-point landmark model, then build and run:
-
-```bash
-./scripts/download_landmark_model.sh     # one-time, ~96 MB -> models/
-./scripts/build.sh                       # or: cmake -S . -B build && cmake --build build --parallel
+sudo apt-get install -y libopencv-dev libdlib-dev libblas-dev liblapack-dev   # or: brew install opencv dlib
+./scripts/download_landmark_model.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --parallel
 ./build/dms
 ```
 
-> The model in `models/` is auto-detected, so no flags are needed. The startup
-> log prints the active backend. Press **`q`** or **`ESC`** to quit.
+### Keys (while running)
+
+| Key | Action |
+|---|---|
+| `q` / `ESC` | quit |
+| `d` | toggle **developer mode** (inference ms, risk contributions) |
+| `c` | restart **calibration** ("look straight") |
 
 ### Command-line options
 
 ```
---camera <n>        camera index (default 0)
---model <path>      landmark model: dlib .dat or OpenCV .yaml (auto-detected from models/)
---cascades <dir>    Haar cascade directory (auto-detected if omitted)
---no-mirror         do not mirror the view
---no-beep           disable the audible alarm
--h, --help          show this help
+--config <path>     config JSON (default config/config.json)
+--camera <n>        camera index
+--model <path>      landmark model: dlib .dat or OpenCV .yaml (auto-detected)
+--phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)
+--cascades <dir>    Haar cascade dir (auto-detected if omitted)
+--dev               start in developer mode
+--no-mirror | --no-beep | --no-log
 ```
 
 ---
 
-## Demo tips
+## Configuration & thresholds
 
-- Sit at a normal arm's-length distance in reasonable lighting.
-- **Close your eyes** for ~1.5 s → drowsiness alarm + beep.
-- **Turn your head** left/right or **look down** at a "phone" → distraction alert.
-- **Step out of frame** → "driver not detected" alarm.
-- Fake a **yawn** (landmark mode) → yawn counter ticks up.
+All thresholds live in `config/config.json` (auto-created on first run). Every
+value is documented in `include/dms/Config.hpp`. Key ones:
 
-Thresholds live in [`include/dms/Config.hpp`](include/dms/Config.hpp) and can be
-tuned for your camera and lighting.
+| Key | Meaning |
+|---|---|
+| `ear_threshold`, `ear_close_ratio` | fixed / adaptive eyes-closed threshold |
+| `eye_closed_drowsy_seconds`, `eye_closed_alarm_seconds` | closure → DROWSY / CRITICAL |
+| `perclos_window_seconds`, `perclos_warn`, `perclos_alarm` | PERCLOS window + levels |
+| `long_blink_seconds` | blink duration counted as a "long blink" |
+| `mar_threshold`, `yawn_min_seconds` | mouth-open level + min duration for a yawn |
+| `head_away_yaw_degrees`, `head_down_pitch_degrees`, `head_away_duration_seconds` | head-pose distraction |
+| `gaze_off_threshold` | pupil offset counted as looking away |
+| `phone_confidence_threshold`, `phone_confirm_frames`, `phone_detect_every_n_frames` | phone detection |
+| `face_lost_grace_seconds`, `no_face_alarm_seconds` | presence debounce / absent alarm |
+| `w_drowsiness`, `w_distraction`, `w_phone`, `w_yawn` | **risk-fusion weights** |
+| `risk_warning_threshold`, `risk_high_threshold`, `risk_critical_threshold` | risk → state bands |
+| `state_enter_seconds`, `state_exit_seconds` | state-machine escalate / recover persistence |
+| `alert_cooldown_seconds` | min gap between repeat audible alerts |
 
-## How it works
+To tune: edit the JSON and restart. Raising a weight increases that signal's
+influence on the overall risk; lowering an "enter"/"exit" second makes the state
+react faster / recover faster.
 
-```
-webcam ─▶ FaceTracker ─▶ FaceObservation ─┬▶ DrowsinessDetector ─┐
-         (Haar / LBF)                      └▶ DistractionDetector ─┴▶ AlertManager ─▶ Dashboard ─▶ window
-```
+## Calibration
 
-| File | Responsibility |
-| --- | --- |
-| `src/FaceTracker.cpp` | Face + eye detection, landmark fitting, EAR/MAR, head pose |
-| `src/DrowsinessDetector.cpp` | Eye-closure timing, PERCLOS, blinks, yawns |
-| `src/DistractionDetector.cpp` | Head-pose / face-offset attention logic |
-| `src/AlertManager.cpp` | Fuses signals, escalates, drives the beep |
-| `src/Dashboard.cpp` | Draws the annotated video + status panel |
-| `src/main.cpp` | Camera loop, CLI, FPS |
+At startup (and whenever you press `c`) the app shows *"Please look straight at
+the camera"* for `calibration_seconds`. During this window the EAR baseline is
+learned per-driver and alerts are suppressed. Calibration is optional — it simply
+improves robustness across faces, glasses and camera positions.
 
-## Notes & limitations
+## Developer mode
 
-This is a **demo / educational** project, not a certified safety system. Haar
-and LBF detectors are lightweight and can struggle with poor lighting, extreme
-angles, or heavy occlusion. Numbers like EAR and PERCLOS thresholds are sensible
-defaults, not calibrated per-driver values.
+Press `d` (or start with `--dev`) to overlay inference time and the individual
+risk contributions (drowsiness / distraction / phone / yawn) — useful for tuning.
+
+## Performance notes
+
+Targets 20–30 FPS on a normal laptop. Optimizations in place:
+- dlib HOG face detection runs on a **half-size frame** and only **every 3rd
+  frame** (landmarks still every frame) — the single biggest speedup.
+- EAR/MAR moving averages + head-pose EMA avoid per-frame jitter without cost.
+- Phone/YOLO (Phase 2) runs at ~5–10 FPS with box reuse + temporal confirmation.
+- Capture is 640×480 by default (configurable).
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Detection backend: Haar cascade` (no yawns/EAR) | dlib not compiled in — install dlib (vcpkg) and rebuild **with** the toolchain flag in a fresh `build` dir |
+| `Could not open camera` | close Teams/Zoom, or try `--camera 1` |
+| Missing `opencv_world4100.dll` | re-run the `$env:Path += ...` line before launching |
+| `Could not locate Haar cascades` | bundled in `data/`; run from the repo root or pass `--cascades` |
+| Face lost in low light | improve lighting; Haar/HOG need a reasonably lit, front-facing face |
+| Erratic state switching | increase `state_enter_seconds` / `state_exit_seconds` |
+
+## Testing procedure
+
+1. **Presence** — leave the frame → "DRIVER NOT DETECTED" after `no_face_alarm_seconds`; brief look-away should NOT trigger it (grace).
+2. **Drowsiness** — close eyes ~0.7 s → DROWSY; ~1.3 s → CRITICAL; alarm beeps.
+3. **PERCLOS** — blink slowly/often → PERCLOS % rises → fatigue.
+4. **Yawn** — open mouth wide ~1 s → yawn counter increments.
+5. **Distraction** — turn head or look down for >2 s → DISTRACTED.
+6. **Recovery** — return to normal → state de-escalates after `state_exit_seconds`.
+7. Check `logs/events.csv` and the on-screen timeline recorded each transition.
+
+## Roadmap
+
+- **Phase 2 (optional):** phone detection via ONNX Runtime + YOLOv8-nano
+  (`--phone-model models/yolov8n.onnx`), already wired into the RiskEngine and
+  gated behind a CMake option so the build works with or without it.

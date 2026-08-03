@@ -57,6 +57,8 @@ private:
     // last box in between (the 68-point predictor still runs every frame).
     dlib::rectangle lastFace_;
     bool haveLastFace_ = false;
+    double lastConfidence_ = 0.0;
+    int lastCount_ = 0;
     int frameCount_ = 0;
     static constexpr int kDetectInterval = 3;
 #endif

@@ -48,9 +48,9 @@ double mouthAspectRatio(const std::vector<cv::Point2f>& lm) {
 void fillLandmarkMetrics(FaceObservation& obs, const Config& cfg) {
     static const int L[6] = {36, 37, 38, 39, 40, 41};
     static const int R[6] = {42, 43, 44, 45, 46, 47};
-    const double earL = eyeAspectRatio(obs.landmarks, L);
-    const double earR = eyeAspectRatio(obs.landmarks, R);
-    obs.ear = 0.5 * (earL + earR);
+    obs.earLeft = eyeAspectRatio(obs.landmarks, L);
+    obs.earRight = eyeAspectRatio(obs.landmarks, R);
+    obs.ear = 0.5 * (obs.earLeft + obs.earRight);
     obs.mar = mouthAspectRatio(obs.landmarks);
     obs.eyesClosed = obs.ear < cfg.earThreshold;
 }
@@ -203,21 +203,29 @@ FaceObservation FaceTracker::processDlib(const cv::Mat& frameBGR) {
         cv::resize(frameBGR, small, cv::Size(), scale, scale, cv::INTER_LINEAR);
 
         dlib::cv_image<dlib::bgr_pixel> dsmall(small);
-        std::vector<dlib::rectangle> dets = detector_(dsmall);
+        std::vector<dlib::rect_detection> dets;
+        detector_(dsmall, dets);  // overload that also yields detection confidence
         if (dets.empty()) {
             haveLastFace_ = false;
+            lastCount_ = 0;
             return obs;
         }
-        const dlib::rectangle best = *std::max_element(
-            dets.begin(), dets.end(), [](const dlib::rectangle& a, const dlib::rectangle& b) {
-                return a.area() < b.area();
-            });
+        // Primary driver = largest detected face; keep its confidence + count.
+        size_t bestIdx = 0;
+        for (size_t i = 1; i < dets.size(); ++i) {
+            if (dets[i].rect.area() > dets[bestIdx].rect.area()) bestIdx = i;
+        }
+        const dlib::rectangle best = dets[bestIdx].rect;
         lastFace_ = dlib::rectangle(
             static_cast<long>(best.left() / scale), static_cast<long>(best.top() / scale),
             static_cast<long>(best.right() / scale), static_cast<long>(best.bottom() / scale));
+        lastConfidence_ = std::clamp(dets[bestIdx].detection_confidence / 1.5, 0.0, 1.0);
+        lastCount_ = static_cast<int>(dets.size());
         haveLastFace_ = true;
     }
 
+    obs.confidence = lastConfidence_;
+    obs.faceCount = lastCount_;
     const dlib::rectangle& full = lastFace_;
     obs.face = cv::Rect(cv::Point(static_cast<int>(full.left()), static_cast<int>(full.top())),
                         cv::Point(static_cast<int>(full.right()) + 1,
@@ -264,6 +272,8 @@ FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
                                      return a.area() < b.area();
                                  });
     obs.faceDetected = true;
+    obs.faceCount = static_cast<int>(faces.size());
+    obs.confidence = 0.8;  // Haar has no score; report a nominal confidence
 
 #ifdef DMS_HAVE_FACE
     if (facemarkLoaded_) {

@@ -39,10 +39,16 @@ endif()
 
 add_executable(dms
     src/main.cpp
+    src/Types.cpp
+    src/ConfigManager.cpp
     src/FaceTracker.cpp
+    src/GazeEstimator.cpp
     src/DrowsinessDetector.cpp
     src/DistractionDetector.cpp
+    src/ObjectDetector.cpp
+    src/RiskEngine.cpp
     src/AlertManager.cpp
+    src/EventLogger.cpp
     src/Dashboard.cpp
 )
 

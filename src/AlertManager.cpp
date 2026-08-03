@@ -1,33 +1,40 @@
 #include "dms/AlertManager.hpp"
 
-#include <algorithm>
 #include <cstdio>
 
 namespace dms {
 
-AlertManager::State AlertManager::combine(const DrowsinessDetector::Result& drowsy,
-                                          const DistractionDetector::Result& distract,
-                                          double tSeconds) {
-    State s;
-    s.level = std::max(drowsy.level, distract.level);
-
-    if (drowsy.level > 0) s.reasons.push_back(drowsy.message);
-    if (distract.level > 0) s.reasons.push_back(distract.message);
-
-    if (s.level >= 2) {
-        // The more urgent of the two drives the headline.
-        s.headline = drowsy.level >= distract.level ? drowsy.message : distract.message;
-    } else if (s.level == 1) {
-        s.headline = "CAUTION";
-    } else {
-        s.headline = "MONITORING";
+namespace {
+const char* messageFor(DriverState s) {
+    switch (s) {
+        case DriverState::Safe: return "";
+        case DriverState::AttentionRequired: return "Please pay attention to the road";
+        case DriverState::Drowsy: return "Drowsiness detected";
+        case DriverState::Distracted: return "Driver distraction detected";
+        case DriverState::PhoneUsage: return "Phone usage detected";
+        case DriverState::HighRisk: return "High risk - refocus on driving";
+        case DriverState::Critical: return "CRITICAL - pull over safely";
     }
+    return "";
+}
+} // namespace
 
-    // Audible alarm on level 2, rate-limited so it pulses rather than screams.
-    if (cfg_.beep && s.level >= 2 && tSeconds - lastBeep_ >= 0.7) {
-        std::fputc('\a', stderr);
-        std::fflush(stderr);
-        lastBeep_ = tSeconds;
+AlertManager::State AlertManager::update(const RiskEngine::Result& risk, double tSeconds) {
+    State s;
+    s.level = risk.alertLevel;
+    s.reasons = risk.reasons;
+    s.headline = toString(risk.state);
+    s.message = messageFor(risk.state);
+
+    // Audible alarm on level >= 2, rate-limited. Critical (3) pulses ~2x faster.
+    if (cfg_.beep && s.level >= 2) {
+        const double interval = s.level >= 3 ? cfg_.alertCooldownSeconds * 0.5
+                                             : cfg_.alertCooldownSeconds;
+        if (tSeconds - lastBeep_ >= interval) {
+            std::fputc('\a', stderr);
+            std::fflush(stderr);
+            lastBeep_ = tSeconds;
+        }
     }
     return s;
 }
