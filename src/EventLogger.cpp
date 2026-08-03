@@ -1,6 +1,9 @@
 #include "dms/EventLogger.hpp"
 
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <ctime>
 #include <iostream>
 
