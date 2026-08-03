@@ -1,0 +1,13 @@
+# Build output
+build/
+*.o
+*.obj
+*.exe
+
+# Downloaded model (large, fetched via scripts/download_facemark_model.sh)
+models/*.yaml
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
