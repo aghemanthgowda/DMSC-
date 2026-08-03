@@ -61,7 +61,10 @@ labels, not official clause numbers.
 | RQ-21 | EMI / EMC compliance | — | — | — | REQUIRES_LAB_VALIDATION | hardware/vehicle EMC lab only |
 | RQ-22 | Vehicle-level integration, field-of-view, mounting, on-road validation | — | — | — | REQUIRES_VEHICLE_TEST | not possible on a laptop webcam |
 | RQ-23 | Fault detection / system-status signalling | camera/model/inference error handling + status | main + Dashboard | T21,T22 | PARTIALLY_IMPLEMENTED | basic status only |
-| RQ-24 | Extended distraction (phone) — NOT an AIS-184 DDAW requirement | optional YOLO/ONNX, temporal-confirmed | ObjectDetector | — | PARTIALLY_IMPLEMENTED | extended feature; gated |
+| RQ-24 | Extended distraction (phone) — NOT an AIS-184 DDAW requirement. Must be evidence-based, never head-pose-based | YOLO/ONNX object detection + temporal state machine + hand fusion; **head pose never implies phone** | ObjectDetector, PhoneState | T01–T07 (false-pos) | PARTIALLY_IMPLEMENTED | extended; needs an ONNX object model (COCO has phone). See docs/MODELS.md |
+| RQ-25 | Smoking detection (Extended) | cigarette-near-mouth + hand-near-mouth + temporal; **UNKNOWN without a cigarette model** | SmokingDetector | T14,T15 | NOT_IMPLEMENTED (honest UNKNOWN) | COCO has no cigarette class; needs a custom model |
+| RQ-26 | Seat-belt monitoring (Extended) | torso ROI + belt model; **UNKNOWN when not determinable** | SeatBeltDetector | T21,T22,T23 | NOT_IMPLEMENTED (honest UNKNOWN) | COCO has no seat-belt class; needs a custom model; never reports "not worn" on non-visibility |
+| RQ-27 | Turning head / looking away / body movement MUST NOT trigger phone or smoking | posture removed from phone logic; distraction-only | main, RiskEngine | T01–T11 | IMPLEMENTED | verified: turned head → phonePresent=0 |
 
 ## Summary counts
 

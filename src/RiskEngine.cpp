@@ -43,6 +43,12 @@ RiskEngine::Result RiskEngine::update(const DrowsinessDetector::Result& drowsy,
                    r.yawnContribution) /
                   (wSum > 1e-6 ? wSum : 1.0);
 
+    // A strong, sustained SINGLE signal must not be diluted away by the blend
+    // (e.g. a driver looking away with everything else normal is still risky).
+    risk = std::max(risk, drowsyScore * 0.85);
+    risk = std::max(risk, distract.score * 0.60);
+    risk = std::max(risk, phoneScore * 0.90);
+
     // A confirmed absent driver is inherently high risk.
     if (!driverPresent) risk = std::max(risk, cfg_.riskHighThreshold);
     risk = std::clamp(risk, 0.0, 100.0);

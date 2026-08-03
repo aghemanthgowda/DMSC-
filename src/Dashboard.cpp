@@ -147,6 +147,8 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
     if (f.hand && f.hand->handNearFace)
         for (const auto& b : f.hand->boxes) cv::rectangle(cam, b, cv::Scalar(0, 200, 255), 2);
     if (f.phone && f.phone->phonePresent) cv::rectangle(cam, f.phone->box, kRed, 2);
+    if (f.developer && f.seatbelt && f.seatbelt->torsoRoi.area() > 0)
+        cv::rectangle(cam, f.seatbelt->torsoRoi, cv::Scalar(120, 120, 120), 1);
     if (obs.faceCount > 1) text(cam, "MULTIPLE FACES", {12, 26}, 0.6, kAmber, 2);
     if (alert.level == 3) cv::rectangle(cam, {0, 0}, {cam.cols - 1, cam.rows - 1}, kRed, 8);
     if (!alert.message.empty()) {
@@ -221,17 +223,17 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
     // Metrics grid of cards
     text(panel, "VITALS", {14, y + 12}, 0.44, kMuted, 1);
     y += 22;
-    const int pad = 12, cardH = 46;
+    const int pad = 12, cardH = 40, gap = 6;
     const int colW = (PW - 3 * pad) / 2;
     int idx = 0;
     const int gridTop = y;
     auto card = [&](const std::string& label, const std::string& value, const cv::Scalar& vc) {
         const int col = idx % 2, row = idx / 2;
         const int x = pad + col * (colW + pad);
-        const int cy = gridTop + row * (cardH + 8);
-        roundRect(panel, {x, cy, colW, cardH}, 8, kCard);
-        text(panel, label, {x + 12, cy + 17}, 0.4, kMuted);
-        text(panel, value, {x + 12, cy + 37}, 0.5, vc, 1);
+        const int cy = gridTop + row * (cardH + gap);
+        roundRect(panel, {x, cy, colW, cardH}, 7, kCard);
+        text(panel, label, {x + 12, cy + 15}, 0.38, kMuted);
+        text(panel, value, {x + 12, cy + 33}, 0.48, vc, 1);
         ++idx;
     };
 
@@ -259,15 +261,20 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
          distract.headDir != "forward" ? kAmber : kInk);
     card("GAZE", f.gaze && f.gaze->valid ? f.gaze->direction : "n/a",
          f.gaze && f.gaze->valid && f.gaze->direction != "forward" ? kAmber : kInk);
-    card("PHONE", (f.phone && f.phone->phonePresent)
-                      ? (f.phoneInferred ? "USE (infer)" : "DETECTED")
-                      : (f.phone && f.phone->available ? "none" : "off"),
+    card("PHONE",
+         f.phone ? (f.phone->available ? toString(f.phone->state) : "off (no model)") : "off",
          (f.phone && f.phone->phonePresent) ? kRed : kInk);
+    card("SMOKING",
+         f.smoking ? toString(f.smoking->state) : "n/a",
+         (f.smoking && f.smoking->state == SmokingState::Confirmed) ? kRed : kMuted);
+    card("SEAT BELT",
+         f.seatbelt ? toString(f.seatbelt->state) : "n/a",
+         (f.seatbelt && f.seatbelt->state == SeatBeltState::NotDetected) ? kAmber : kMuted);
     card("HAND / EYE",
          std::string(f.hand && f.hand->handNearFace ? "near-face" : "clear") + " / " +
              (f.gaze && f.gaze->hasPupils ? "iris" : "-"),
          (f.hand && f.hand->handNearFace) ? kAmber : kGreen);
-    y = gridTop + ((idx + 1) / 2) * (cardH + 8) + 6;
+    y = gridTop + ((idx + 1) / 2) * (cardH + gap) + 4;
 
     if (f.developer) {
         text(panel,

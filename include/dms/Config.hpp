@@ -48,9 +48,23 @@ struct Config {
     // --- Gaze (approximate) ---
     double gazeOffThreshold = 0.28;      // normalized pupil offset => looking away
 
-    // --- Phone detection (ONNX) ---
+    // --- Object detection (YOLO / ONNX) ---
+    // Class IDs into the model's label set. COCO defaults: person=0, cell phone=67.
+    // cigarette / seat belt are NOT in COCO — leave at -1 until a custom model is
+    // provided (the detector then reports UNKNOWN rather than faking it).
+    int classIdPhone = 67;
+    int classIdPerson = 0;
+    int classIdCigarette = -1;
+    int classIdSeatbelt = -1;
+    double yoloConfidence = 0.45;        // detection score threshold
+    double nmsThreshold = 0.45;          // non-max-suppression IoU
+    double objectTrackTimeoutSeconds = 0.6;  // drop a track after this without a hit
+    double handPhoneDistanceFraction = 0.9;  // hand-phone dist / face-width => "held"
+    double handMouthDistanceFraction = 0.6;  // hand-mouth dist / face-width (smoking)
+
+    // --- Phone temporal confirmation ---
     double phoneConfidenceThreshold = 0.50;
-    int phoneConfirmFrames = 3;          // detections needed to confirm PHONE USE
+    int phoneConfirmFrames = 3;          // detections needed to confirm PHONE
     int phoneDetectEveryNFrames = 4;     // run YOLO ~1/N frames for performance
 
     // --- Hand activity (Extended DMS, skin-based, approximate) ---

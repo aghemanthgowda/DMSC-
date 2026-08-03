@@ -22,6 +22,36 @@ const char* toString(DistractionLevel l) {
     return "?";
 }
 
+const char* toString(PhoneState s) {
+    switch (s) {
+        case PhoneState::NoPhone: return "NO PHONE";
+        case PhoneState::Possible: return "POSSIBLE PHONE";
+        case PhoneState::Detected: return "PHONE DETECTED";
+        case PhoneState::UsageConfirmed: return "PHONE USE CONFIRMED";
+    }
+    return "?";
+}
+
+const char* toString(SmokingState s) {
+    switch (s) {
+        case SmokingState::NoSmoking: return "NO SMOKING";
+        case SmokingState::Possible: return "POSSIBLE SMOKING";
+        case SmokingState::Confirmed: return "SMOKING";
+        case SmokingState::Unknown: return "UNKNOWN";
+    }
+    return "?";
+}
+
+const char* toString(SeatBeltState s) {
+    switch (s) {
+        case SeatBeltState::Unknown: return "UNKNOWN";
+        case SeatBeltState::NotDetected: return "NOT DETECTED";
+        case SeatBeltState::Detected: return "DETECTED";
+        case SeatBeltState::Fastened: return "FASTENED";
+    }
+    return "?";
+}
+
 const char* toString(DriverState s) {
     switch (s) {
         case DriverState::Safe: return "SAFE";

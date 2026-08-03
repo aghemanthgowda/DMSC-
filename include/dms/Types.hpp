@@ -18,6 +18,20 @@ const char* toString(DrowsyLevel l);
 enum class DistractionLevel { Attentive, Brief, Distracted, Highly };
 const char* toString(DistractionLevel l);
 
+// Phone-usage state machine (evidence-based, never from head pose).
+enum class PhoneState { NoPhone, Possible, Detected, UsageConfirmed };
+const char* toString(PhoneState s);
+
+// Smoking state machine. Requires an actual cigarette-capable model; defaults
+// to Unknown so we never fake a detection.
+enum class SmokingState { NoSmoking, Possible, Confirmed, Unknown };
+const char* toString(SmokingState s);
+
+// Seat-belt state. Unknown when visibility/model is insufficient — never claim
+// "not worn" just because the belt isn't visible.
+enum class SeatBeltState { Unknown, NotDetected, Detected, Fastened };
+const char* toString(SeatBeltState s);
+
 // Overall fused driver state produced by the RiskEngine (spec section 9).
 enum class DriverState {
     Safe,
@@ -84,10 +98,29 @@ struct HandResult {
 // ObjectDetector when built; otherwise a harmless "nothing detected".
 // ---------------------------------------------------------------------------
 struct PhoneResult {
-    bool available = false;                // detector actually running
-    bool phonePresent = false;             // confirmed over several frames
+    bool available = false;                // detector actually running (real model)
+    bool phonePresent = false;             // state >= Detected (temporal-confirmed)
+    PhoneState state = PhoneState::NoPhone;
+    bool heldByHand = false;               // phone box near a hand (fusion)
     double confidence = 0.0;
     cv::Rect box;
+};
+
+// Smoking detection result (Extended DMS). Honest default = Unknown.
+struct SmokingResult {
+    bool available = false;
+    SmokingState state = SmokingState::Unknown;
+    double confidence = 0.0;
+    cv::Rect box;
+};
+
+// Seat-belt result (Extended DMS). Honest default = Unknown; torso ROI provided
+// for a future segmentation/detection model.
+struct SeatBeltResult {
+    bool available = false;
+    SeatBeltState state = SeatBeltState::Unknown;
+    double confidence = 0.0;
+    cv::Rect torsoRoi;
 };
 
 } // namespace dms

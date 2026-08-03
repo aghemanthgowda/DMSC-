@@ -24,6 +24,8 @@ public:
         const GazeResult* gaze = nullptr;
         const PhoneResult* phone = nullptr;
         const HandResult* hand = nullptr;
+        const SmokingResult* smoking = nullptr;
+        const SeatBeltResult* seatbelt = nullptr;
         bool phoneInferred = false;
         const RiskEngine::Result* risk = nullptr;
         const AlertManager::State* alert = nullptr;

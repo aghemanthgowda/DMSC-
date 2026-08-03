@@ -66,6 +66,8 @@ add_executable(dms
     src/DrowsinessDetector.cpp
     src/DistractionDetector.cpp
     src/ObjectDetector.cpp
+    src/SeatBeltDetector.cpp
+    src/SmokingDetector.cpp
     src/RiskEngine.cpp
     src/AlertManager.cpp
     src/EventLogger.cpp

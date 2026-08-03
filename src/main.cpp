@@ -11,6 +11,8 @@
 #include "dms/MonitoringQuality.hpp"
 #include "dms/ObjectDetector.hpp"
 #include "dms/RiskEngine.hpp"
+#include "dms/SeatBeltDetector.hpp"
+#include "dms/SmokingDetector.hpp"
 
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -156,6 +158,8 @@ int main(int argc, char** argv) {
 
     GazeEstimator gaze(cfg);
     HandActivity handAnalyzer(cfg);
+    SeatBeltDetector seatBelt(cfg);
+    SmokingDetector smoking(cfg);
     MonitoringQuality quality(cfg);
     DrowsinessDetector drowsy(cfg);
     DistractionDetector distract(cfg);
@@ -213,22 +217,26 @@ int main(int argc, char** argv) {
         const GazeResult g = gaze.estimate(frame, eff);
         HandResult hand = handAnalyzer.update(frame, eff, t);
 
-        // Infer possible phone use from hand-near-face + a phone-like head
-        // posture (looking down / turned). Only used if the ONNX phone detector
-        // isn't providing a real detection. Extended feature, clearly "inferred".
-        const bool phonePosture =
-            eff.hasHeadPose && (eff.pitch < -12.0 || std::abs(eff.yaw) > 18.0);
-        hand.possiblePhoneUse = hand.handNearFace && phonePosture;
-
+        // PHONE USE IS BASED ONLY ON ACTUAL OBJECT DETECTION EVIDENCE.
+        // Head pose / looking away / body movement NEVER imply phone use — they
+        // feed the distraction score only. Without a YOLO object model the
+        // detector reports NO_PHONE, so turning the head can never be a phone.
         PhoneResult phone = phoneDet.detect(frame, t);
-        bool phoneInferred = false;
-        if (!phone.available && hand.possiblePhoneUse) {
-            phone.available = true;
-            phone.phonePresent = true;
-            phone.confidence = std::max(0.5, hand.confidence);
-            if (!hand.boxes.empty()) phone.box = hand.boxes.front();
-            phoneInferred = true;
-        }
+        const bool phoneInferred = false;  // no posture-based inference (removed)
+
+        // Seat belt (torso ROI; UNKNOWN without a belt model) and smoking
+        // (UNKNOWN without a cigarette model) — honest, evidence-only.
+        const SeatBeltResult belt = seatBelt.update(frame, eff);
+        cv::Point2f mouth = eff.faceDetected
+                                ? cv::Point2f(eff.face.x + eff.face.width * 0.5f,
+                                              eff.face.y + eff.face.height * 0.75f)
+                                : cv::Point2f(0, 0);
+        if (eff.hasLandmarks && eff.landmarks.size() == 68)
+            mouth = 0.5f * (eff.landmarks[48] + eff.landmarks[54]);
+        const PhoneResult noCigarette;  // no cigarette model wired
+        const SmokingResult smoke =
+            smoking.update(noCigarette, mouth, eff.face.width, hand, t);
+
         const MonitoringQuality::Result mq = quality.assess(frame, eff);
         const bool monitoringReliable = eff.faceDetected ? mq.reliable : true;
         const auto dRes = drowsy.update(eff, t);
@@ -265,6 +273,7 @@ int main(int argc, char** argv) {
         Dashboard::Frame df;
         df.obs = &eff; df.drowsy = &dRes; df.distract = &kRes; df.gaze = &g;
         df.phone = &phone; df.hand = &hand; df.phoneInferred = phoneInferred;
+        df.smoking = &smoke; df.seatbelt = &belt;
         df.risk = &risk; df.alert = &alert;
         df.events = &logger.recent();
         df.fps = fps; df.inferenceMs = inferenceMs; df.backend = tracker.backendName();
