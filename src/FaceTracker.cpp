@@ -196,9 +196,10 @@ FaceObservation FaceTracker::processDlib(const cv::Mat& frameBGR) {
     // Run HOG detection only every Nth frame (on a half-size image) and reuse the
     // last box in between; the cheap 68-point predictor still runs every frame so
     // landmarks stay live. This roughly triples throughput on a laptop CPU.
-    const bool doDetect = (frameCount_++ % kDetectInterval == 0) || !haveLastFace_;
+    const int interval = std::max(1, cfg_.faceDetectEveryNFrames);
+    const bool doDetect = (frameCount_++ % interval == 0) || !haveLastFace_;
     if (doDetect) {
-        const double scale = 0.5;
+        const double scale = std::clamp(cfg_.detectionScale, 0.25, 1.0);
         cv::Mat small;
         cv::resize(frameBGR, small, cv::Size(), scale, scale, cv::INTER_LINEAR);
 

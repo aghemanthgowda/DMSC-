@@ -60,7 +60,6 @@ private:
     double lastConfidence_ = 0.0;
     int lastCount_ = 0;
     int frameCount_ = 0;
-    static constexpr int kDetectInterval = 3;
 #endif
     bool dlibLoaded_ = false;
 

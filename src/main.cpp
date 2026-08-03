@@ -121,6 +121,18 @@ int main(int argc, char** argv) {
     FaceTracker tracker(cfg);
     if (!tracker.init()) return 1;
     std::cout << "[info] Detection backend: " << tracker.backendName() << "\n";
+    if (tracker.usingLandmarks()) {
+        std::cout << "[OK] Landmark mode ACTIVE - EAR, yawn (MAR), head pose and gaze ENABLED.\n";
+    } else {
+        std::cout << "\n"
+                     "==================================================================\n"
+                     "  [WARNING] Running in HAAR mode - NO landmarks.\n"
+                     "  EAR, YAWN, HEAD POSE and GAZE are DISABLED in this mode.\n"
+                     "  To enable them: build with dlib and download the 68-point model\n"
+                     "  (see README 'Build & run'), then rerun. The dashboard will show\n"
+                     "  'HAAR MODE' until landmarks are active.\n"
+                     "==================================================================\n\n";
+    }
 
     ObjectDetector phoneDet(cfg);
     phoneDet.init();
@@ -225,6 +237,7 @@ int main(int argc, char** argv) {
         df.phone = &phone; df.risk = &risk; df.alert = &alert;
         df.events = &logger.recent();
         df.fps = fps; df.inferenceMs = inferenceMs; df.backend = tracker.backendName();
+        df.landmarksActive = tracker.usingLandmarks();
         df.calibrating = calibrating;
         df.calibRemaining = std::max(0.0, cfg.calibrationSeconds - (t - calibStart));
         df.developer = cfg.developerMode;

@@ -42,6 +42,8 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readInto(fs, "long_blink_seconds", cfg.longBlinkSeconds);
     readInto(fs, "mar_threshold", cfg.marThreshold);
     readInto(fs, "yawn_min_seconds", cfg.yawnMinSeconds);
+    readInto(fs, "face_detect_every_n_frames", cfg.faceDetectEveryNFrames);
+    readInto(fs, "detection_scale", cfg.detectionScale);
     readInto(fs, "head_away_yaw_degrees", cfg.headAwayYawDegrees);
     readInto(fs, "head_down_pitch_degrees", cfg.headDownPitchDegrees);
     readInto(fs, "head_away_duration_seconds", cfg.headAwayDurationSeconds);
@@ -95,6 +97,8 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "long_blink_seconds" << cfg.longBlinkSeconds;
     fs << "mar_threshold" << cfg.marThreshold;
     fs << "yawn_min_seconds" << cfg.yawnMinSeconds;
+    fs << "face_detect_every_n_frames" << cfg.faceDetectEveryNFrames;
+    fs << "detection_scale" << cfg.detectionScale;
     fs << "head_away_yaw_degrees" << cfg.headAwayYawDegrees;
     fs << "head_down_pitch_degrees" << cfg.headDownPitchDegrees;
     fs << "head_away_duration_seconds" << cfg.headAwayDurationSeconds;

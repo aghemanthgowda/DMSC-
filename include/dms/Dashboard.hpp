@@ -30,6 +30,7 @@ public:
         double fps = 0.0;
         double inferenceMs = 0.0;
         std::string backend;
+        bool landmarksActive = false;
         bool calibrating = false;
         double calibRemaining = 0.0;
         bool developer = false;

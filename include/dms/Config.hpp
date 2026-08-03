@@ -27,9 +27,9 @@ struct Config {
     double longBlinkSeconds = 0.50;      // "long blink" (fatigue cue)
 
     // --- Yawn (MAR) ---
-    double marThreshold = 0.60;          // MAR above this => mouth open
-    double marSmoothingFrames = 5;       // moving-average window over raw MAR
-    double yawnMinSeconds = 1.00;        // mouth open this long => a yawn
+    double marThreshold = 0.50;          // MAR above this => mouth open
+    double marSmoothingFrames = 3;       // moving-average window over raw MAR
+    double yawnMinSeconds = 0.70;        // mouth open this long => a yawn
 
     // --- Head pose / distraction ---
     double headAwayYawDegrees = 25.0;    // |yaw| beyond this => looking left/right
@@ -66,6 +66,10 @@ struct Config {
 
     // --- Calibration ---
     double calibrationSeconds = 3.0;     // "look straight" baseline capture
+
+    // --- Performance / detection ---
+    int faceDetectEveryNFrames = 3;      // run HOG face detection 1/N frames (reuse box between)
+    double detectionScale = 0.5;         // downscale factor for HOG detection
 
     // --- System / IO ---
     int cameraIndex = 0;

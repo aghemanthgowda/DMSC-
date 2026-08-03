@@ -128,8 +128,17 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
     int y = 30;
     text(panel, "DRIVER MONITORING", {16, y}, 0.6, kInk, 2);
     y += 18;
-    text(panel, f.backend + "  |  " + fmt("%.0f fps", f.fps), {16, y}, 0.4, kMuted);
+    text(panel, f.backend + "  |  " + fmt("%.0f fps", f.fps), {16, y},
+         0.4, f.landmarksActive ? kMuted : kRed);
     y += 20;
+
+    // Loud warning when landmarks are unavailable (why yawn/EAR say "n/a").
+    if (!f.landmarksActive) {
+        cv::rectangle(panel, {12, y}, {kPanelWidth - 12, y + 40}, kRed, -1);
+        text(panel, "HAAR MODE - landmarks OFF", {20, y + 17}, 0.46, cv::Scalar(20, 20, 20), 1);
+        text(panel, "EAR / yawn / pose disabled", {20, y + 33}, 0.42, cv::Scalar(20, 20, 20), 1);
+        y += 50;
+    }
 
     // State banner.
     cv::rectangle(panel, {12, y}, {kPanelWidth - 12, y + 50}, accent, -1);
