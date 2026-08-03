@@ -44,7 +44,7 @@ public:
     cv::Mat render(const cv::Mat& frameBGR, const Frame& f);
 
 private:
-    static constexpr int kPanelWidth = 380;
+    static constexpr int kPanelWidth = 400;
 };
 
 } // namespace dms
