@@ -161,8 +161,8 @@ cv::Mat Dashboard::render(const cv::Mat& frameBGR, const Frame& f) {
         ov.setTo(cv::Scalar(0, 0, 0));
         cv::addWeighted(ov, 0.5, cam, 0.5, 0, cam);
         text(cam, "CALIBRATION", {cam.cols / 2 - 120, cam.rows / 2 - 16}, 0.95, kInk, 2);
-        text(cam, "Please look straight at the camera",
-             {cam.cols / 2 - 175, cam.rows / 2 + 16}, 0.6, kInk);
+        text(cam, "Sit normally and look ahead at the road",
+             {cam.cols / 2 - 195, cam.rows / 2 + 16}, 0.58, kInk);
         text(cam, fmt("%.1fs", f.calibRemaining), {cam.cols / 2 - 22, cam.rows / 2 + 50}, 0.75,
              kAccent, 2);
     }

@@ -87,6 +87,11 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readInto(fs, "camera_index", cfg.cameraIndex);
     readInto(fs, "capture_width", cfg.captureWidth);
     readInto(fs, "capture_height", cfg.captureHeight);
+    readInto(fs, "camera_rotation", cfg.cameraRotation);
+    readBool(fs, "head_pose_calibrate", cfg.headPoseCalibrate);
+    readInto(fs, "head_yaw_offset", cfg.headYawOffset);
+    readInto(fs, "head_pitch_offset", cfg.headPitchOffset);
+    readInto(fs, "head_roll_offset", cfg.headRollOffset);
     readInto(fs, "phone_model", cfg.phoneModel);
     readBool(fs, "mirror", cfg.mirror);
     readBool(fs, "beep", cfg.beep);
@@ -163,6 +168,11 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "camera_index" << cfg.cameraIndex;
     fs << "capture_width" << cfg.captureWidth;
     fs << "capture_height" << cfg.captureHeight;
+    fs << "camera_rotation" << cfg.cameraRotation;
+    fs << "head_pose_calibrate" << (cfg.headPoseCalibrate ? 1 : 0);
+    fs << "head_yaw_offset" << cfg.headYawOffset;
+    fs << "head_pitch_offset" << cfg.headPitchOffset;
+    fs << "head_roll_offset" << cfg.headRollOffset;
     fs << "phone_model" << cfg.phoneModel;
     fs << "mirror" << (cfg.mirror ? 1 : 0);
     fs << "beep" << (cfg.beep ? 1 : 0);

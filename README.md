@@ -178,7 +178,9 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --parallel
 
 ```
 --config <path>     config JSON (default config/config.json)
---camera <n>        camera index
+--camera <n>        camera index (see --list-cameras)
+--list-cameras      probe camera indices and exit
+--rotate <deg>      rotate frames 0/90/180/270 (for a rotated mounting)
 --model <path>      landmark model: dlib .dat or OpenCV .yaml (auto-detected)
 --phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)
 --cascades <dir>    Haar cascade dir (auto-detected if omitted)
@@ -213,12 +215,36 @@ To tune: edit the JSON and restart. Raising a weight increases that signal's
 influence on the overall risk; lowering an "enter"/"exit" second makes the state
 react faster / recover faster.
 
+## Adding a USB webcam / changing the camera angle
+
+1. Plug in the webcam and find its index:
+   ```bash
+   ./build/dms --list-cameras        # e.g. "camera 1: AVAILABLE (1280x720)"
+   ```
+2. Run against it:
+   ```bash
+   ./build/dms --camera 1
+   ```
+   (`ls /dev/video*` also lists devices; add `--rotate 90/180/270` if the camera
+   is mounted rotated.)
+
+**Camera angle:** a DMS camera is often mounted off to the side (A-pillar / dash),
+so the driver's normal "looking at the road" pose is *not* straight-on. The system
+handles this automatically: during the 3-second **calibration** it records your
+neutral pose and makes all head-pose/attention decisions **relative to it**, so a
+side-mounted camera doesn't read your normal driving position as "looking away".
+Just sit normally and look at the road during calibration (press `c` to redo it
+after repositioning the camera). You can also preset the offset in `config.json`
+(`head_yaw_offset` / `head_pitch_offset` / `head_roll_offset`) or disable the
+auto-learn with `head_pose_calibrate: 0`.
+
 ## Calibration
 
-At startup (and whenever you press `c`) the app shows *"Please look straight at
-the camera"* for `calibration_seconds`. During this window the EAR baseline is
-learned per-driver and alerts are suppressed. Calibration is optional — it simply
-improves robustness across faces, glasses and camera positions.
+At startup (and whenever you press `c`) the app shows *"Sit normally and look
+ahead at the road"* for `calibration_seconds`. During this window the EAR baseline
+**and the head-pose neutral** are learned per-driver/mount, and alerts are
+suppressed. Calibration is optional but recommended — it makes the system robust
+across faces, glasses and **camera angles**.
 
 ## Developer mode
 

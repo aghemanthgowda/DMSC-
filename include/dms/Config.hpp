@@ -111,7 +111,17 @@ struct Config {
     int cameraIndex = 0;
     int captureWidth = 640;
     int captureHeight = 480;
+    int cameraRotation = 0;              // 0/90/180/270 for a rotated mounting
     bool mirror = true;                  // selfie-mirrored view
+
+    // --- Head-pose neutral (for an angled/off-centre camera mount) ---
+    // Captured during calibration: the driver's normal "looking at the road"
+    // pose becomes the zero reference, so a side-mounted camera doesn't read the
+    // neutral pose as "looking away". Can also be preset here.
+    bool headPoseCalibrate = true;       // learn neutral pose during calibration
+    double headYawOffset = 0.0;          // preset offset (used if not calibrating)
+    double headPitchOffset = 0.0;
+    double headRollOffset = 0.0;
     bool beep = true;                    // audible alarm
     bool developerMode = false;          // extra on-screen diagnostics
     bool logEvents = true;               // append events to logs/events.csv

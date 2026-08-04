@@ -64,7 +64,9 @@ void printUsage(const char* prog) {
         "Driver Monitoring System (C++ / OpenCV / dlib)\n"
         "Usage: " << prog << " [options]\n"
         "  --config <path>     config JSON (default config/config.json)\n"
-        "  --camera <n>        camera index\n"
+        "  --camera <n>        camera index (see --list-cameras)\n"
+        "  --list-cameras      probe /dev/video* indices and exit\n"
+        "  --rotate <deg>      rotate frames 0/90/180/270 (angled mounting)\n"
         "  --model <path>      landmark model: dlib .dat or OpenCV .yaml\n"
         "  --phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)\n"
         "  --cascades <dir>    Haar cascade directory (auto-detected if omitted)\n"
@@ -75,6 +77,24 @@ void printUsage(const char* prog) {
         "  --no-log            do not write logs/events.csv\n"
         "  -h, --help          show this help\n"
         "Keys while running:  q/ESC quit   d developer mode   c recalibrate\n";
+}
+
+// Probe camera indices so the user can find their USB webcam.
+void listCameras() {
+    std::cout << "Probing camera indices 0..9 ...\n";
+    bool any = false;
+    for (int i = 0; i < 10; ++i) {
+        cv::VideoCapture c(i);
+        if (c.isOpened()) {
+            const int w = static_cast<int>(c.get(cv::CAP_PROP_FRAME_WIDTH));
+            const int h = static_cast<int>(c.get(cv::CAP_PROP_FRAME_HEIGHT));
+            std::cout << "  camera " << i << ": AVAILABLE (" << w << "x" << h << ")\n";
+            c.release();
+            any = true;
+        }
+    }
+    if (!any) std::cout << "  no cameras found. Check connection / 'video' group permission.\n";
+    else std::cout << "Run with:  --camera <n>\n";
 }
 
 } // namespace
@@ -93,7 +113,9 @@ int main(int argc, char** argv) {
         const std::string a = argv[i];
         auto next = [&]() { return i + 1 < argc ? std::string(argv[++i]) : std::string(); };
         if (a == "--config") next();
+        else if (a == "--list-cameras") { listCameras(); return 0; }
         else if (a == "--camera") cfg.cameraIndex = std::stoi(next());
+        else if (a == "--rotate") cfg.cameraRotation = std::stoi(next());
         else if (a == "--model") cfg.facemarkModel = next();
         else if (a == "--phone-model") cfg.phoneModel = next();
         else if (a == "--cascades") cfg.cascadeDir = next();
@@ -176,6 +198,13 @@ int main(int argc, char** argv) {
     double fps = 0.0, inferenceMs = 0.0;
     double calibStart = 0.0;
 
+    // Head-pose neutral baseline (handles an angled / off-centre camera mount).
+    double neutYaw = cfg.headYawOffset, neutPitch = cfg.headPitchOffset,
+           neutRoll = cfg.headRollOffset;
+    bool neutSet = !cfg.headPoseCalibrate;  // if not calibrating, use the presets
+    double sumYaw = 0, sumPitch = 0, sumRoll = 0;
+    int sumN = 0;
+
     // Presence debounce + event-transition tracking.
     FaceObservation lastGood;
     bool haveLastGood = false;
@@ -192,6 +221,9 @@ int main(int argc, char** argv) {
             std::cerr << "[warn] Empty frame from camera; stopping.\n";
             break;
         }
+        if (cfg.cameraRotation == 90) cv::rotate(frame, frame, cv::ROTATE_90_CLOCKWISE);
+        else if (cfg.cameraRotation == 180) cv::rotate(frame, frame, cv::ROTATE_180);
+        else if (cfg.cameraRotation == 270) cv::rotate(frame, frame, cv::ROTATE_90_COUNTERCLOCKWISE);
         if (cfg.mirror) cv::flip(frame, frame, 1);
 
         const auto now = std::chrono::steady_clock::now();
@@ -206,6 +238,26 @@ int main(int argc, char** argv) {
                       0.2 * std::chrono::duration<double, std::milli>(
                                 std::chrono::steady_clock::now() - iStart)
                                 .count();
+
+        // --- Head-pose neutral calibration (angled/off-centre camera) ---
+        // While calibrating, average the driver's pose (their normal "looking at
+        // the road" position). Afterwards, subtract it so "forward" is relative to
+        // that mount, not to an absolute straight-on camera.
+        const bool calibratingNow = (t - calibStart) < cfg.calibrationSeconds;
+        if (cfg.headPoseCalibrate && calibratingNow && obs.hasHeadPose) {
+            sumYaw += obs.yaw; sumPitch += obs.pitch; sumRoll += obs.roll; ++sumN;
+        } else if (cfg.headPoseCalibrate && !calibratingNow && !neutSet) {
+            if (sumN > 0) {
+                neutYaw = sumYaw / sumN; neutPitch = sumPitch / sumN; neutRoll = sumRoll / sumN;
+            }
+            neutSet = true;
+            logger.log("Head-pose baseline set", 0);
+            std::cout << "[info] Head-pose neutral: yaw=" << neutYaw << " pitch=" << neutPitch
+                      << " roll=" << neutRoll << " (camera-angle compensated)\n";
+        }
+        if (neutSet && obs.hasHeadPose) {
+            obs.yaw -= neutYaw; obs.pitch -= neutPitch; obs.roll -= neutRoll;
+        }
 
         // Presence with grace: reuse the last good face for brief dropouts.
         if (obs.faceDetected) { lastGood = obs; haveLastGood = true; lastSeen = t; }
@@ -291,7 +343,12 @@ int main(int argc, char** argv) {
         const int key = cv::waitKey(1) & 0xFF;
         if (key == 'q' || key == 27) break;
         if (key == 'd') cfg.developerMode = !cfg.developerMode;
-        if (key == 'c') { calibStart = t; logger.log("Recalibration started", 0); }
+        if (key == 'c') {
+            calibStart = t;
+            sumYaw = sumPitch = sumRoll = 0; sumN = 0;
+            neutSet = !cfg.headPoseCalibrate;  // re-learn the neutral pose
+            logger.log("Recalibration started", 0);
+        }
     }
 
     cap.release();
