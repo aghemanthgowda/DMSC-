@@ -40,7 +40,10 @@ MonitoringQuality::Result MonitoringQuality::assess(const cv::Mat& frameBGR,
     } else if (faceFrac < cfg_.qualityMinFaceWidthFraction) {
         r.reliable = false;
         r.reason = "face too small / far";
-    } else if (obs.confidence < cfg_.qualityMinConfidence) {
+    } else if (!obs.hasLandmarks && obs.confidence < cfg_.qualityMinConfidence) {
+        // Detection score is only a reliability signal when we have NO landmarks.
+        // An angled/off-centre camera mount gives dlib a low HOG score even while
+        // the 68 landmarks track fine, so don't flag "low confidence" in that case.
         r.reliable = false;
         r.reason = "low detection confidence";
     } else if (!obs.hasLandmarks) {

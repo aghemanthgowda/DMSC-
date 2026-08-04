@@ -46,7 +46,7 @@
     "state_exit_seconds": 1.5,
     "alert_cooldown_seconds": 4.0,
     "calibration_seconds": 3.0,
-    "camera_index": 0,
+    "camera_index": 2,
     "capture_width": 640,
     "capture_height": 480,
     "camera_rotation": 0,
