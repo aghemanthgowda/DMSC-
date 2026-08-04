@@ -30,7 +30,7 @@
     "phone_confidence_threshold": 0.50,
     "phone_confirm_frames": 3,
     "phone_detect_every_n_frames": 4,
-    "enable_hand_detection": 1,
+    "enable_hand_detection": 0,
     "hand_min_area_fraction": 0.10,
     "hand_confirm_seconds": 0.4,
     "face_lost_grace_seconds": 0.7,

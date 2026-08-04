@@ -68,7 +68,9 @@ struct Config {
     int phoneDetectEveryNFrames = 4;     // run YOLO ~1/N frames for performance
 
     // --- Hand activity (Extended DMS, skin-based, approximate) ---
-    bool enableHandDetection = true;     // detect hand-near-face for phone-use inference
+    // Off by default: the skin heuristic false-fires on ears/neck at angled mounts
+    // and real phone detection now comes from YOLO. Set to 1 to re-enable.
+    bool enableHandDetection = false;    // detect hand-near-face (approximate)
     double handMinAreaFraction = 0.10;   // min skin blob area as fraction of face area
     double handConfirmSeconds = 0.4;     // temporal confirmation window
 
