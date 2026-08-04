@@ -31,11 +31,11 @@ struct Config {
     // baseline and flags "mouth open" when MAR rises marOpenDelta above it (or
     // above the absolute marThreshold floor), with hysteresis + a dip tolerance
     // so landmark jitter during a yawn does not reset the timer.
-    double marThreshold = 0.30;          // absolute open floor
-    double marOpenDelta = 0.22;          // open when MAR > closed-baseline + this
+    double marThreshold = 0.18;          // absolute open floor (lower = more sensitive)
+    double marOpenDelta = 0.12;          // open when MAR > closed-baseline + this
     double marBaselineWindowSeconds = 8; // window for the closed-mouth baseline
     double marSmoothingFrames = 3;       // moving-average window over raw MAR
-    double yawnMinSeconds = 0.60;        // mouth open this long => a yawn
+    double yawnMinSeconds = 0.55;        // mouth open this long => a yawn
     double yawnDipToleranceSeconds = 0.30; // brief MAR dips shorter than this don't reset
 
     // --- Head pose / distraction ---

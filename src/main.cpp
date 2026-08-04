@@ -139,6 +139,11 @@ int main(int argc, char** argv) {
         else if (fileExists("models/lbfmodel.yaml"))
             cfg.facemarkModel = "models/lbfmodel.yaml";
     }
+    // Auto-detect a YOLO object model for phone detection.
+    if (cfg.phoneModel.empty()) {
+        for (const char* m : {"models/yolov8n.onnx", "models/yolov5n.onnx", "models/yolov5s.onnx"})
+            if (fileExists(m)) { cfg.phoneModel = m; break; }
+    }
     // Write a default config on first run so thresholds are easy to find/tune.
     if (!fileExists(configPath)) {
 #ifdef _WIN32
@@ -273,7 +278,7 @@ int main(int argc, char** argv) {
         // Head pose / looking away / body movement NEVER imply phone use — they
         // feed the distraction score only. Without a YOLO object model the
         // detector reports NO_PHONE, so turning the head can never be a phone.
-        PhoneResult phone = phoneDet.detect(frame, t);
+        PhoneResult phone = phoneDet.detect(frame, eff, hand, t);
         const bool phoneInferred = false;  // no posture-based inference (removed)
 
         // Seat belt (torso ROI; UNKNOWN without a belt model) and smoking

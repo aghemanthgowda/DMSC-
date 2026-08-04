@@ -14,7 +14,7 @@ endif()
 # landmark mode, otherwise the program still builds and runs in Haar fallback
 # mode. This lets Windows users use the official prebuilt OpenCV (no contrib,
 # no compiling) and get a working demo.
-find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs objdetect highgui videoio calib3d)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs objdetect highgui videoio calib3d dnn)
 
 option(DMS_USE_FACE "Enable OpenCV-contrib 68-point landmark mode ('face' module)" ON)
 option(DMS_USE_DLIB "Enable dlib 68-point landmark mode (recommended, most accurate)" ON)

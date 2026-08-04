@@ -49,21 +49,29 @@ what is implemented, what each feature needs, and how to plug a model in.
 `-1` means "no such class in the loaded model" → the feature reports UNKNOWN.
 Never set an invalid COCO id to fake a class.
 
-## How to enable phone detection (YOLO via ONNX Runtime)
+## How to enable phone detection (YOLO via OpenCV DNN — NO ONNX Runtime)
 
-1. Install ONNX Runtime (Windows): `C:\vcpkg\vcpkg install onnxruntime:x64-windows`
-   (or download the prebuilt ONNX Runtime and point CMake at it).
-2. Export a small model to ONNX, e.g. YOLOv8-nano:
-   `pip install ultralytics && yolo export model=yolov8n.pt format=onnx` →
-   put `yolov8n.onnx` in `models/`.
-3. Build with ONNX enabled (the CMake option `DMS_USE_ONNX` / `DMS_HAVE_ONNX` gate)
-   and run with `--phone-model models/yolov8n.onnx`.
-4. `ObjectDetector` runs the model every N frames, applies confidence + NMS,
-   temporal-confirms, and (with hand fusion) drives the phone state machine
-   `NO_PHONE → POSSIBLE → DETECTED → USAGE_CONFIRMED`.
+Phone detection runs the YOLO model through **OpenCV's own `cv::dnn` module**, so
+there is **no ONNX Runtime dependency** — if you built the project, you already
+have everything except the model file.
 
-> The ONNX inference session code is the remaining integration step; the interface,
-> class map, temporal confirmation, state machine and fusion are already in place.
+1. Download a model (COCO, ~28 MB):
+   ```bash
+   ./scripts/download_yolo_model.sh      # -> models/yolov5s.onnx
+   ```
+   Or a faster one: `pip install ultralytics && yolo export model=yolov8n.pt format=onnx`
+   then put `yolov8n.onnx` in `models/`. **Both YOLOv5 and YOLOv8 formats are
+   supported** (auto-detected).
+2. Rebuild and run — the model in `models/` is auto-detected (or pass
+   `--phone-model models/yolov5s.onnx`).
+3. `ObjectDetector` runs the model every N frames (`phone_detect_every_n_frames`),
+   applies confidence + NMS, temporal-confirms, fuses with a nearby hand, and
+   drives the phone state machine `NO_PHONE → POSSIBLE → DETECTED →
+   USAGE_CONFIRMED`. Verified end-to-end (detects COCO objects via cv::dnn).
+
+**Performance note:** YOLOv5s on a laptop CPU is ~100–200 ms/inference, so it runs
+every 4th frame by default. Use **yolov8n** for higher FPS, or raise
+`phone_detect_every_n_frames`. On the i.MX 93 the Ethos-U NPU can accelerate this.
 
 ## For cigarette / seat belt
 
