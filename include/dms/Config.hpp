@@ -130,6 +130,8 @@ struct Config {
     bool privacyMode = false;            // no logging/image storage; metadata only
     std::string cascadeDir;              // Haar cascade dir (auto-detected if empty)
     std::string facemarkModel;           // dlib .dat or OpenCV .yaml (auto-detected)
+    std::string landmarkOnnxModel;       // optional PFLD-68 ONNX (angle-robust, cv::dnn)
+    int landmarkInputSize = 112;         // PFLD input square size
     std::string phoneModel;              // YOLO .onnx path (optional)
     std::string configPath = "config/config.json";
 };

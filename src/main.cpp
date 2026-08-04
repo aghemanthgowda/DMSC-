@@ -68,7 +68,8 @@ void printUsage(const char* prog) {
         "  --list-cameras      probe /dev/video* indices and exit\n"
         "  --rotate <deg>      rotate frames 0/90/180/270 (angled mounting)\n"
         "  --model <path>      landmark model: dlib .dat or OpenCV .yaml\n"
-        "  --phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)\n"
+        "  --landmark-model <p> PFLD-68 .onnx landmarks (angle-robust, via OpenCV DNN)\n"
+        "  --phone-model <p>   YOLO .onnx for phone detection (OpenCV DNN)\n"
         "  --cascades <dir>    Haar cascade directory (auto-detected if omitted)\n"
         "  --dev               start in developer mode\n"
         "  --privacy           privacy mode: no logging / image storage\n"
@@ -117,6 +118,7 @@ int main(int argc, char** argv) {
         else if (a == "--camera") cfg.cameraIndex = std::stoi(next());
         else if (a == "--rotate") cfg.cameraRotation = std::stoi(next());
         else if (a == "--model") cfg.facemarkModel = next();
+        else if (a == "--landmark-model") cfg.landmarkOnnxModel = next();
         else if (a == "--phone-model") cfg.phoneModel = next();
         else if (a == "--cascades") cfg.cascadeDir = next();
         else if (a == "--dev") cfg.developerMode = true;
@@ -143,6 +145,11 @@ int main(int argc, char** argv) {
     if (cfg.phoneModel.empty()) {
         for (const char* m : {"models/yolov8n.onnx", "models/yolov5n.onnx", "models/yolov5s.onnx"})
             if (fileExists(m)) { cfg.phoneModel = m; break; }
+    }
+    // Auto-detect an ONNX face-landmark model (angle-robust, optional).
+    if (cfg.landmarkOnnxModel.empty()) {
+        for (const char* m : {"models/pfld.onnx", "models/landmarks.onnx", "models/pfld_68.onnx"})
+            if (fileExists(m)) { cfg.landmarkOnnxModel = m; break; }
     }
     // Write a default config on first run so thresholds are easy to find/tune.
     if (!fileExists(configPath)) {

@@ -73,6 +73,31 @@ have everything except the model file.
 every 4th frame by default. Use **yolov8n** for higher FPS, or raise
 `phone_detect_every_n_frames`. On the i.MX 93 the Ethos-U NPU can accelerate this.
 
+## Angle-robust face landmarks (PFLD-68 ONNX) — optional
+
+dlib's 68-point landmarks assume a near-frontal face and degrade at steep camera
+angles (side/overhead mounts), which makes EAR/yawn less accurate. The code
+supports an optional **PFLD-68 ONNX** landmark model run via OpenCV DNN — when a
+model is present it replaces the dlib landmark step (dlib/Haar still finds the
+face box).
+
+**Expected model format:** input `1x3x112x112` (RGB, /255), output `1x136` =
+68 (x,y) normalized to [0,1] of the face crop, in iBUG-68 order.
+
+**Get a model (Python export, one time):**
+```bash
+git clone https://github.com/github-luffy/PFLD_68points_Pytorch
+# follow its README to export to ONNX (torch.onnx.export), then:
+cp pfld.onnx <project>/models/pfld.onnx
+```
+It is auto-detected as `models/pfld.onnx` (or pass `--landmark-model models/pfld.onnx`).
+Startup then prints `Detection backend: ONNX 68-pt landmarks`.
+
+> **Honest expectation:** PFLD is somewhat more angle-tolerant than dlib, but no
+> monocular 68-pt model is perfect at extreme above/side angles. The single most
+> effective fix is a **more frontal camera mount**. For the i.MX 93, a
+> quantized landmark model on the Ethos-U NPU is the production path.
+
 ## For cigarette / seat belt
 
 Train (or obtain) a YOLO model that includes those classes, set the matching

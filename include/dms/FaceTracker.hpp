@@ -3,6 +3,7 @@
 #include "dms/Config.hpp"
 #include "dms/Types.hpp"
 
+#include <opencv2/dnn.hpp>
 #include <opencv2/objdetect.hpp>
 #ifdef DMS_HAVE_FACE
 #include <opencv2/face.hpp>
@@ -33,7 +34,7 @@ public:
     // universal fallback) cannot be loaded.
     bool init();
 
-    bool usingLandmarks() const { return dlibLoaded_ || facemarkLoaded_; }
+    bool usingLandmarks() const { return dlibLoaded_ || facemarkLoaded_ || lmOnnxLoaded_; }
     const char* backendName() const;
 
     FaceObservation process(const cv::Mat& frameBGR);
@@ -62,6 +63,10 @@ private:
     int frameCount_ = 0;
 #endif
     bool dlibLoaded_ = false;
+
+    cv::dnn::Net lmNet_;
+    bool lmOnnxLoaded_ = false;
+    bool fitLandmarksOnnx(const cv::Mat& frameBGR, const cv::Rect& face, FaceObservation& obs);
 
     void fallbackEyes(const cv::Mat& gray, FaceObservation& obs);
     void estimateHeadPose(FaceObservation& obs, const cv::Size& frameSize) const;

@@ -64,9 +64,50 @@ void fillLandmarkMetrics(FaceObservation& obs, const Config& cfg) {
 FaceTracker::FaceTracker(const Config& cfg) : cfg_(cfg) {}
 
 const char* FaceTracker::backendName() const {
+    if (lmOnnxLoaded_) return "ONNX 68-pt landmarks";
     if (dlibLoaded_) return "dlib 68-point landmarks";
     if (facemarkLoaded_) return "OpenCV 68-point landmarks";
     return "Haar cascade";
+}
+
+// Run a PFLD-style 68-point ONNX model on the (expanded) face crop. Expected
+// output: 136 values = 68 (x,y) normalized to [0,1] of the crop. Fills obs.
+bool FaceTracker::fitLandmarksOnnx(const cv::Mat& frameBGR, const cv::Rect& face,
+                                   FaceObservation& obs) {
+    const cv::Rect frameRect(0, 0, frameBGR.cols, frameBGR.rows);
+    // Expand the box a little (PFLD expects some margin around the face).
+    cv::Rect box = face;
+    const int mx = static_cast<int>(face.width * 0.1), my = static_cast<int>(face.height * 0.1);
+    box.x -= mx; box.y -= my; box.width += 2 * mx; box.height += 2 * my;
+    box &= frameRect;
+    if (box.width < 10 || box.height < 10) return false;
+
+    cv::Mat crop, resized;
+    cv::resize(frameBGR(box), resized, cv::Size(cfg_.landmarkInputSize, cfg_.landmarkInputSize));
+    cv::Mat blob = cv::dnn::blobFromImage(resized, 1.0 / 255.0,
+                                          cv::Size(cfg_.landmarkInputSize, cfg_.landmarkInputSize),
+                                          cv::Scalar(), true, false);
+    lmNet_.setInput(blob);
+    cv::Mat out;
+    try {
+        out = lmNet_.forward();
+    } catch (const cv::Exception&) {
+        return false;
+    }
+    out = out.reshape(1, 1);
+    if (out.total() < 136) return false;
+
+    obs.landmarks.clear();
+    obs.landmarks.reserve(68);
+    const float* p = out.ptr<float>(0);
+    for (int i = 0; i < 68; ++i) {
+        obs.landmarks.emplace_back(p[2 * i] * box.width + box.x,
+                                   p[2 * i + 1] * box.height + box.y);
+    }
+    obs.hasLandmarks = true;
+    fillLandmarkMetrics(obs, cfg_);
+    estimateHeadPose(obs, frameBGR.size());
+    return true;
 }
 
 bool FaceTracker::init() {
@@ -80,6 +121,22 @@ bool FaceTracker::init() {
     if (!eyeCascade_.load(eyeXml)) {
         std::cerr << "[FaceTracker] Failed to load eye cascade: " << eyeXml << "\n";
         return false;
+    }
+
+    // Optional angle-robust ONNX landmark model (PFLD-68) via OpenCV DNN.
+    if (!cfg_.landmarkOnnxModel.empty()) {
+        try {
+            lmNet_ = cv::dnn::readNetFromONNX(cfg_.landmarkOnnxModel);
+            lmNet_.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+            lmNet_.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+            lmOnnxLoaded_ = true;
+            std::cout << "[FaceTracker] Loaded ONNX landmark model: " << cfg_.landmarkOnnxModel
+                      << "\n";
+        } catch (const cv::Exception& e) {
+            std::cerr << "[FaceTracker] Could not load ONNX landmark model ("
+                      << cfg_.landmarkOnnxModel << "); using dlib/Haar.\n";
+            lmOnnxLoaded_ = false;
+        }
     }
 
     if (!cfg_.facemarkModel.empty()) {
@@ -237,6 +294,12 @@ FaceObservation FaceTracker::processDlib(const cv::Mat& frameBGR) {
     obs.face &= cv::Rect(0, 0, frameBGR.cols, frameBGR.rows);
     obs.faceDetected = true;
 
+    // Prefer the angle-robust ONNX landmark model when loaded.
+    if (lmOnnxLoaded_) {
+        fitLandmarksOnnx(frameBGR, obs.face, obs);
+        return obs;
+    }
+
     dlib::cv_image<dlib::bgr_pixel> dfull(frameBGR);
     const dlib::full_object_detection shape = predictor_(dfull, full);
     if (shape.num_parts() == 68) {
@@ -278,6 +341,8 @@ FaceObservation FaceTracker::process(const cv::Mat& frameBGR) {
     obs.faceDetected = true;
     obs.faceCount = static_cast<int>(faces.size());
     obs.confidence = 0.8;  // Haar has no score; report a nominal confidence
+
+    if (lmOnnxLoaded_ && fitLandmarksOnnx(frameBGR, obs.face, obs)) return obs;
 
 #ifdef DMS_HAVE_FACE
     if (facemarkLoaded_) {
