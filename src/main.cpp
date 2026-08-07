@@ -1,4 +1,5 @@
 #include "dms/AlertManager.hpp"
+#include "dms/CameraGrabber.hpp"
 #include "dms/Config.hpp"
 #include "dms/ConfigManager.hpp"
 #include "dms/Dashboard.hpp"
@@ -78,6 +79,9 @@ void printUsage(const char* prog) {
         "  --snapshot <path>   headless dashboard image target (default dms_frame.jpg)\n"
         "  --stream [port]     serve the LIVE dashboard as MJPEG over HTTP so you\n"
         "                      can watch it in a browser: http://<board-ip>:8080/\n"
+        "  --fast              smoother/low-latency on slow devices (i.MX 93): no\n"
+        "                      YOLO, lower resolution, less-frequent face detection\n"
+        "  --no-phone          disable the CPU-heavy YOLO phone detector only\n"
         "  --dev               start in developer mode\n"
         "  --privacy           privacy mode: no logging / image storage\n"
         "  --no-mirror         do not mirror the view\n"
@@ -117,6 +121,7 @@ int main(int argc, char** argv) {
     }
     ConfigManager::load(configPath, cfg);
 
+    bool noPhone = false, fast = false;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         auto next = [&]() { return i + 1 < argc ? std::string(argv[++i]) : std::string(); };
@@ -138,6 +143,8 @@ int main(int argc, char** argv) {
                 cfg.streamPort = std::stoi(next());
             }
         }
+        else if (a == "--no-phone") noPhone = true;
+        else if (a == "--fast") fast = true;
         else if (a == "--dev") cfg.developerMode = true;
         else if (a == "--privacy") cfg.privacyMode = true;
         else if (a == "--no-mirror") cfg.mirror = false;
@@ -146,6 +153,19 @@ int main(int argc, char** argv) {
         else if (a == "-h" || a == "--help") { printUsage(argv[0]); return 0; }
         else { std::cerr << "Unknown option: " << a << "\n"; printUsage(argv[0]); return 1; }
     }
+
+    // Performance switches for slow devices (e.g. the i.MX 93 CPU). --fast trades
+    // some detection range for a much smoother, lower-latency stream: it drops the
+    // CPU-heavy YOLO phone model, captures at a lower resolution, and runs face
+    // detection less often (the 68-pt predictor still runs every frame).
+    if (fast) {
+        noPhone = true;
+        cfg.captureWidth = 480;
+        cfg.captureHeight = 360;
+        cfg.faceDetectEveryNFrames = std::max(cfg.faceDetectEveryNFrames, 5);
+        cfg.streamJpegQuality = std::min(cfg.streamJpegQuality, 70);
+    }
+    if (noPhone) cfg.phoneModel.clear();  // no YOLO: detector reports NO_PHONE cheaply
 
     if (cfg.cascadeDir.empty()) cfg.cascadeDir = autoDetectCascadeDir(argv[0]);
     if (cfg.cascadeDir.empty()) {
@@ -158,8 +178,8 @@ int main(int argc, char** argv) {
         else if (fileExists("models/lbfmodel.yaml"))
             cfg.facemarkModel = "models/lbfmodel.yaml";
     }
-    // Auto-detect a YOLO object model for phone detection.
-    if (cfg.phoneModel.empty()) {
+    // Auto-detect a YOLO object model for phone detection (unless disabled).
+    if (!noPhone && cfg.phoneModel.empty()) {
         for (const char* m : {"models/yolov8n.onnx", "models/yolov5n.onnx", "models/yolov5s.onnx"})
             if (fileExists(m)) { cfg.phoneModel = m; break; }
     }
@@ -206,6 +226,12 @@ int main(int argc, char** argv) {
     }
     cap.set(cv::CAP_PROP_FRAME_WIDTH, cfg.captureWidth);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, cfg.captureHeight);
+
+    // Grab on a background thread and always process the newest frame, so a slow
+    // device (e.g. the i.MX 93 CPU) can't let the capture buffer back up and the
+    // video fall behind real time.
+    CameraGrabber grabber;
+    grabber.start(cap);
 
     GazeEstimator gaze(cfg);
     HandActivity handAnalyzer(cfg);
@@ -269,7 +295,7 @@ int main(int argc, char** argv) {
     double lastStatus = -1e9;  // headless console throttle
     cv::Mat frame;
     while (true) {
-        if (!cap.read(frame) || frame.empty()) {
+        if (!grabber.read(frame) || frame.empty()) {
             std::cerr << "[warn] Empty frame from camera; stopping.\n";
             break;
         }
@@ -437,6 +463,7 @@ int main(int argc, char** argv) {
     }
 
     stream.stop();
+    grabber.stop();
     cap.release();
     cv::destroyAllWindows();
     std::cout << "[info] Monitoring stopped.\n";

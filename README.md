@@ -237,6 +237,19 @@ This is the right way to give a live demo from the i.MX 93 EVK: the board only
 has a serial console, so instead of a local window the dashboard streams to any
 browser on the network.
 
+**If the stream lags on the board**, use `--fast`:
+
+```bash
+./dms --camera 0 --stream --headless --fast
+```
+
+Two things cause lag on an embedded CPU: (1) frames buffering faster than they're
+processed, and (2) the CPU-heavy YOLO phone model. The grabber already always
+processes the *newest* frame and drops stale ones (so latency can't grow
+unbounded), and `--fast` drops the YOLO model, lowers the capture resolution, and
+runs face detection less often — a much smoother, near-real-time demo. To keep
+everything except the phone detector, use `--no-phone` instead.
+
 ---
 
 ## Configuration & thresholds
