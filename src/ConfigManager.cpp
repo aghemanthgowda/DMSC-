@@ -98,6 +98,7 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readBool(fs, "developer_mode", cfg.developerMode);
     readBool(fs, "log_events", cfg.logEvents);
     readBool(fs, "privacy_mode", cfg.privacyMode);
+    readBool(fs, "headless", cfg.headless);
 
     fs.release();
     std::cout << "[ConfigManager] Loaded config from " << path << "\n";
@@ -179,6 +180,7 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "developer_mode" << (cfg.developerMode ? 1 : 0);
     fs << "log_events" << (cfg.logEvents ? 1 : 0);
     fs << "privacy_mode" << (cfg.privacyMode ? 1 : 0);
+    fs << "headless" << (cfg.headless ? 1 : 0);
 
     fs.release();
     return true;

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <sys/stat.h>
@@ -71,6 +72,9 @@ void printUsage(const char* prog) {
         "  --landmark-model <p> PFLD-68 .onnx landmarks (angle-robust, via OpenCV DNN)\n"
         "  --phone-model <p>   YOLO .onnx for phone detection (OpenCV DNN)\n"
         "  --cascades <dir>    Haar cascade directory (auto-detected if omitted)\n"
+        "  --headless          no GUI window (board/SSH/serial): prints status,\n"
+        "                      saves the dashboard to dms_frame.jpg periodically\n"
+        "  --snapshot <path>   headless dashboard image target (default dms_frame.jpg)\n"
         "  --dev               start in developer mode\n"
         "  --privacy           privacy mode: no logging / image storage\n"
         "  --no-mirror         do not mirror the view\n"
@@ -121,6 +125,8 @@ int main(int argc, char** argv) {
         else if (a == "--landmark-model") cfg.landmarkOnnxModel = next();
         else if (a == "--phone-model") cfg.phoneModel = next();
         else if (a == "--cascades") cfg.cascadeDir = next();
+        else if (a == "--headless") cfg.headless = true;
+        else if (a == "--snapshot") { cfg.headlessImagePath = next(); cfg.headless = true; }
         else if (a == "--dev") cfg.developerMode = true;
         else if (a == "--privacy") cfg.privacyMode = true;
         else if (a == "--no-mirror") cfg.mirror = false;
@@ -203,7 +209,13 @@ int main(int argc, char** argv) {
     Dashboard dashboard;
 
     const std::string win = "Driver Monitoring System";
-    cv::namedWindow(win, cv::WINDOW_AUTOSIZE);
+    if (!cfg.headless) cv::namedWindow(win, cv::WINDOW_AUTOSIZE);
+    else {
+        std::cout << "[info] HEADLESS mode: no GUI window. Live status prints below;\n"
+                     "       the dashboard is saved to '" << cfg.headlessImagePath
+                  << "' about every " << cfg.headlessStatusInterval << "s.\n"
+                     "       Stop with Ctrl-C.\n";
+    }
 
     const auto t0 = std::chrono::steady_clock::now();
     auto lastTick = t0;
@@ -225,8 +237,10 @@ int main(int argc, char** argv) {
     int prevYawns = 0;
     bool prevPhone = false, prevPresent = true, loggedStart = false;
 
-    std::cout << "[info] Monitoring started. Keys: q/ESC quit, d dev, c recalibrate.\n";
+    if (!cfg.headless)
+        std::cout << "[info] Monitoring started. Keys: q/ESC quit, d dev, c recalibrate.\n";
 
+    double lastStatus = -1e9;  // headless console throttle
     cv::Mat frame;
     while (true) {
         if (!cap.read(frame) || frame.empty()) {
@@ -350,6 +364,32 @@ int main(int argc, char** argv) {
         df.developer = cfg.developerMode;
 
         const cv::Mat canvas = dashboard.render(frame, df);
+
+        if (cfg.headless) {
+            // No display server on this host: print a live status line and drop
+            // the rendered dashboard to an image file at the status interval.
+            if (t - lastStatus >= cfg.headlessStatusInterval) {
+                lastStatus = t;
+                const char* st = calibrating ? "CALIBRATING" : toString(risk.state);
+                std::cout << "[dms] t=" << std::fixed << std::setprecision(1) << t << "s"
+                          << " state=" << st
+                          << " risk=" << std::setprecision(0) << risk.score
+                          << " | " << (driverPresent ? "present" : "ABSENT")
+                          << (monitoringReliable ? "" : " (monitoring-low)")
+                          << " | EAR=" << std::setprecision(2) << dRes.ear
+                          << " PERCLOS=" << std::setprecision(0) << (dRes.perclos * 100.0) << "%"
+                          << " drowsy=" << dRes.score
+                          << " | yawns=" << dRes.yawnCount
+                          << " | attn=" << toString(kRes.level)
+                          << " | phone=" << (phone.phonePresent ? "YES" : "no")
+                          << " | " << std::setprecision(1) << fps << "fps"
+                          << std::defaultfloat << "\n";
+                std::cout.flush();
+                cv::imwrite(cfg.headlessImagePath, canvas);
+            }
+            continue;  // no window, no key handling
+        }
+
         cv::imshow(win, canvas);
 
         const int key = cv::waitKey(1) & 0xFF;

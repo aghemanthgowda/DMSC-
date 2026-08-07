@@ -126,6 +126,12 @@ struct Config {
     double headRollOffset = 0.0;
     bool beep = true;                    // audible alarm
     bool developerMode = false;          // extra on-screen diagnostics
+    // Headless: no GUI window (for a board/SSH/serial console with no display).
+    // Prints a live status line to stdout and periodically writes the rendered
+    // dashboard to an image file so it can still be inspected without a monitor.
+    bool headless = false;               // run without any GUI window
+    std::string headlessImagePath = "dms_frame.jpg"; // dashboard snapshot target
+    double headlessStatusInterval = 1.0; // seconds between console status lines
     bool logEvents = true;               // append events to logs/events.csv
     bool privacyMode = false;            // no logging/image storage; metadata only
     std::string cascadeDir;              // Haar cascade dir (auto-detected if empty)

@@ -184,8 +184,30 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --parallel
 --model <path>      landmark model: dlib .dat or OpenCV .yaml (auto-detected)
 --phone-model <p>   YOLO .onnx for phone detection (needs ONNX build)
 --cascades <dir>    Haar cascade dir (auto-detected if omitted)
+--headless          no GUI window (board / SSH / serial console): prints a live
+                    status line and saves the dashboard to dms_frame.jpg
+--snapshot <path>   headless dashboard image target (default dms_frame.jpg)
 --dev               start in developer mode
 --no-mirror | --no-beep | --no-log
+```
+
+### Headless mode (embedded board / no monitor)
+
+On a target with no display server (e.g. the **NXP i.MX 93 EVK** over a serial
+console, or any SSH session), OpenCV's GUI (`cv::imshow`) cannot open a window
+and aborts with a Qt/Wayland error. Run with `--headless` instead:
+
+```bash
+./dms --camera 0 --headless
+```
+
+It runs the full pipeline with **no window**, prints a live status line each
+second, and writes the rendered dashboard to `dms_frame.jpg` (override with
+`--snapshot <path>`) so you can still inspect it — e.g. `scp` it back, or open it
+if a display is attached later. Stop with `Ctrl-C`. Example status line:
+
+```
+[dms] t=12.0s state=Safe risk=8 | present | EAR=0.28 PERCLOS=2% drowsy=5 | yawns=0 | attn=Attentive | phone=no | 14.6fps
 ```
 
 ---
