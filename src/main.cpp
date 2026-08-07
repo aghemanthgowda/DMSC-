@@ -8,6 +8,7 @@
 #include "dms/FaceTracker.hpp"
 #include "dms/GazeEstimator.hpp"
 #include "dms/HandActivity.hpp"
+#include "dms/MjpegServer.hpp"
 #include "dms/MonitoringQuality.hpp"
 #include "dms/ObjectDetector.hpp"
 #include "dms/RiskEngine.hpp"
@@ -75,6 +76,8 @@ void printUsage(const char* prog) {
         "  --headless          no GUI window (board/SSH/serial): prints status,\n"
         "                      saves the dashboard to dms_frame.jpg periodically\n"
         "  --snapshot <path>   headless dashboard image target (default dms_frame.jpg)\n"
+        "  --stream [port]     serve the LIVE dashboard as MJPEG over HTTP so you\n"
+        "                      can watch it in a browser: http://<board-ip>:8080/\n"
         "  --dev               start in developer mode\n"
         "  --privacy           privacy mode: no logging / image storage\n"
         "  --no-mirror         do not mirror the view\n"
@@ -127,6 +130,14 @@ int main(int argc, char** argv) {
         else if (a == "--cascades") cfg.cascadeDir = next();
         else if (a == "--headless") cfg.headless = true;
         else if (a == "--snapshot") { cfg.headlessImagePath = next(); cfg.headless = true; }
+        else if (a == "--stream") {
+            cfg.streamEnabled = true;
+            // Optional numeric port right after --stream.
+            if (i + 1 < argc && std::string(argv[i + 1]).find_first_not_of("0123456789")
+                                    == std::string::npos) {
+                cfg.streamPort = std::stoi(next());
+            }
+        }
         else if (a == "--dev") cfg.developerMode = true;
         else if (a == "--privacy") cfg.privacyMode = true;
         else if (a == "--no-mirror") cfg.mirror = false;
@@ -215,6 +226,21 @@ int main(int argc, char** argv) {
                      "       the dashboard is saved to '" << cfg.headlessImagePath
                   << "' about every " << cfg.headlessStatusInterval << "s.\n"
                      "       Stop with Ctrl-C.\n";
+    }
+
+    // Optional live MJPEG stream (watch the demo in a browser from another machine).
+    MjpegServer stream;
+    if (cfg.streamEnabled) {
+        if (stream.start(cfg.streamPort, cfg.streamJpegQuality)) {
+            std::cout << "[info] LIVE STREAM ready. On another machine on the same "
+                         "network, open:\n"
+                         "         http://<this-device-ip>:" << cfg.streamPort << "/\n"
+                         "       (find the IP with `ip addr` / `hostname -I`). "
+                         "Full frame rate, no monitor needed.\n";
+        } else {
+            std::cerr << "[warn] Could not start the MJPEG stream on port "
+                      << cfg.streamPort << "; continuing without it.\n";
+        }
     }
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -365,6 +391,10 @@ int main(int argc, char** argv) {
 
         const cv::Mat canvas = dashboard.render(frame, df);
 
+        // Live network stream (browser on another machine) — every frame, both
+        // in headless and windowed modes.
+        if (cfg.streamEnabled) stream.publish(canvas);
+
         if (cfg.headless) {
             // No display server on this host: print a live status line and drop
             // the rendered dashboard to an image file at the status interval.
@@ -383,6 +413,9 @@ int main(int argc, char** argv) {
                           << " | attn=" << toString(kRes.level)
                           << " | phone=" << (phone.phonePresent ? "YES" : "no")
                           << " | " << std::setprecision(1) << fps << "fps"
+                          << (cfg.streamEnabled
+                                  ? " | viewers=" + std::to_string(stream.clientCount())
+                                  : std::string())
                           << std::defaultfloat << "\n";
                 std::cout.flush();
                 cv::imwrite(cfg.headlessImagePath, canvas);
@@ -403,6 +436,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    stream.stop();
     cap.release();
     cv::destroyAllWindows();
     std::cout << "[info] Monitoring stopped.\n";

@@ -99,6 +99,8 @@ bool ConfigManager::load(const std::string& path, Config& cfg) {
     readBool(fs, "log_events", cfg.logEvents);
     readBool(fs, "privacy_mode", cfg.privacyMode);
     readBool(fs, "headless", cfg.headless);
+    readBool(fs, "stream_enabled", cfg.streamEnabled);
+    readInto(fs, "stream_port", cfg.streamPort);
 
     fs.release();
     std::cout << "[ConfigManager] Loaded config from " << path << "\n";
@@ -181,6 +183,8 @@ bool ConfigManager::writeDefault(const std::string& path, const Config& cfg) {
     fs << "log_events" << (cfg.logEvents ? 1 : 0);
     fs << "privacy_mode" << (cfg.privacyMode ? 1 : 0);
     fs << "headless" << (cfg.headless ? 1 : 0);
+    fs << "stream_enabled" << (cfg.streamEnabled ? 1 : 0);
+    fs << "stream_port" << cfg.streamPort;
 
     fs.release();
     return true;

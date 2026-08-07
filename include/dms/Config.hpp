@@ -132,6 +132,12 @@ struct Config {
     bool headless = false;               // run without any GUI window
     std::string headlessImagePath = "dms_frame.jpg"; // dashboard snapshot target
     double headlessStatusInterval = 1.0; // seconds between console status lines
+    // Live network stream: serve the annotated dashboard as MJPEG-over-HTTP so it
+    // can be watched in a browser from another machine on the same network (the
+    // real-time "demo" path for a headless board with no monitor).
+    bool streamEnabled = false;          // start the MJPEG server
+    int streamPort = 8080;               // http://<board-ip>:<port>/
+    int streamJpegQuality = 80;          // 1..100
     bool logEvents = true;               // append events to logs/events.csv
     bool privacyMode = false;            // no logging/image storage; metadata only
     std::string cascadeDir;              // Haar cascade dir (auto-detected if empty)

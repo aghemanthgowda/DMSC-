@@ -63,6 +63,7 @@ add_executable(dms
     src/GazeEstimator.cpp
     src/HandActivity.cpp
     src/MonitoringQuality.cpp
+    src/MjpegServer.cpp
     src/DrowsinessDetector.cpp
     src/DistractionDetector.cpp
     src/ObjectDetector.cpp
@@ -76,6 +77,10 @@ add_executable(dms
 
 target_include_directories(dms PRIVATE ${CMAKE_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(dms PRIVATE ${OpenCV_LIBS})
+
+# The built-in MJPEG stream server runs its accept loop on a thread.
+find_package(Threads REQUIRED)
+target_link_libraries(dms PRIVATE Threads::Threads)
 
 if(DMS_DLIB_AVAILABLE)
     target_compile_definitions(dms PRIVATE DMS_HAVE_DLIB)

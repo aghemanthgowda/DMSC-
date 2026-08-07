@@ -210,6 +210,33 @@ if a display is attached later. Stop with `Ctrl-C`. Example status line:
 [dms] t=12.0s state=Safe risk=8 | present | EAR=0.28 PERCLOS=2% drowsy=5 | yawns=0 | attn=Attentive | phone=no | 14.6fps
 ```
 
+### Live demo over the network (watch it in a browser) — recommended for the board
+
+To see the **actual moving demo** (not a periodic screenshot) on a board with no
+monitor, run the built-in live stream. It serves the annotated dashboard as
+MJPEG-over-HTTP — no display server, no X, no Wayland, no extra libraries:
+
+```bash
+./dms --camera 0 --stream          # add --headless too if there is no monitor
+```
+
+Then, on a laptop/phone **on the same network** (e.g. connected by the same
+Ethernet/router as the board), open a browser at:
+
+```
+http://<board-ip>:8080/
+```
+
+Find `<board-ip>` on the board with `hostname -I` (e.g. `192.168.1.173`). You'll
+see the full-frame-rate live video with the whole DMS overlay — face box,
+landmarks, gauges, drowsiness/attention/phone panels — exactly like the desktop
+window, just delivered over the network. Multiple viewers can connect at once.
+Use `--stream 9000` to pick a different port. Stop with `Ctrl-C`.
+
+This is the right way to give a live demo from the i.MX 93 EVK: the board only
+has a serial console, so instead of a local window the dashboard streams to any
+browser on the network.
+
 ---
 
 ## Configuration & thresholds
