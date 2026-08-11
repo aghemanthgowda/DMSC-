@@ -21,3 +21,6 @@ logs/
 .vscode/
 .idea/
 .DS_Store
+
+# Generated learning-pack PDFs (delivered separately; rebuilt from the .md sources)
+docs/learning/pdf/
